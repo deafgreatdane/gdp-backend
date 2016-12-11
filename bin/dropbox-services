@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd /GDP/conf/dropbox-services
+command=$(ls -r dropbox*.war)
+java -jar $command

@@ -1,0 +1,3 @@
+#!/bin/sh
+find /Volumes/EOS_DIGITAL -name \*.cr2 -exec cp {} "/Volumes/photos HD/originals/0610gdcaRAW" \; -print
+eject /Volumes/EOS_DIGITAL

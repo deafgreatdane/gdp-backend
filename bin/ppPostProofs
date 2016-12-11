@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+
+use strict;
+use HTTP::Cookies;
+use WWW::Mechanize;
+
+my $agent = WWW::Mechanize->new();
+$agent->cookie_jar(HTTP::Cookies->new);
+
+$agent->get("http://www.google.com");

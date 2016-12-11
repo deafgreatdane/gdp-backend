@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $cdArchives = "/GDP/data/cdArchives";
+
+print "what is the base name for this set? "; 
+my $base = <STDIN>;
+
+my $count = 1;
+print "start at? $count " ;
+my $countAnswer = <STDIN>;
+chop $countAnswer;
+if ( $countAnswer) {
+    $count = $countAnswer;
+}
+
+chop($base); if ( $base !~ m:\.$: ) { $base .= "."; }
+
+
+while (1) {
+    print "insert disc $count \n";
+    waitForCd();
+    my $command = "gdpListCdImages > ${cdArchives}/${base}${count}.txt";
+    `$command`;
+    `drutil eject`;
+    $count++;
+}
+
+sub waitForCd {
+    while ( ! isCdMounted() ) {
+	sleep(1);
+    }
+    sleep(2);
+}
+
+sub isCdMounted {
+    my $found = 0;
+    opendir(DIR, "/Volumes");
+    my $fileName;
+    while($fileName = readdir(DIR)) {
+	next if $fileName =~ /^\./;
+	next if $fileName =~ /HD/;
+	$found = 1;
+    }
+    closedir(DIR);
+    return $found;
+}

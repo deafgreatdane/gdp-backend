@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+# extract a data file that can be used by proofGenerate
+use lib "/GDP/lib";
+use DBI;
+use strict;
+use GDP::OrderDb;
+
+my $startAt = shift(@ARGV);
+my $showDir = shift(@ARGV);
+if ( ! $startAt || ! $showDir) {
+    print STDERR "usage: ppData startAt shows20NN\n";
+    exit(2);
+}
+if ( $startAt !~ m:^/: ) {
+    print STDERR "startAt must begin with /\n";
+    exit(1);
+}
+
+my $dbh = GDP::OrderDb::getDatabaseHandle();
+my $sth = $dbh->prepare(qq{select location,label,image_count from path where location like '$startAt%' order by location});
+$sth->execute();
+
+my (@row,$location,@todo,%paths);
+while( @row = $sth->fetchrow_array()) {
+    my $path = {};
+    my( $location,$label,$imageCount) = @row;
+    $path->{'location'} = $location;
+    $path->{'label'} = $label;
+    $path->{'imageCount'} = $imageCount;
+    $path->{'subPaths'} = [];
+
+    $paths{$path->{'location'}} = $path;
+
+    $location =~ m:^(.*/)([^/]*)/$:;
+    my $parentLocation = $1;
+    my $lastChunk = $2;
+    if ( $parentLocation eq "/" ) {
+	# it's the root path
+	my $eventInfo = GDP::OrderDb::getEventInfo($dbh,$lastChunk);
+	print STDERR $eventInfo->{'description'} . "..\n";
+	$path->{'label'} = $eventInfo->{'description'};
+    } else {
+	my $parentPath = $paths{$parentLocation};
+	push(@{$parentPath->{'subPaths'}},$path);
+    }
+
+    push(@todo,$location);
+}
+
+foreach  $location ( @todo ) {
+    my ($path) = $paths{$location};
+    #print STDERR "Doing index in $location\n";
+    print "file\t$showDir$location\n";
+    print "title\t" . $path->{'label'} . "\n";
+    if ( $path->{'imageCount'} > 0 ) {
+	$location =~ m:/([^/]+)/$:;
+	my($fixDir) = $location;
+	$fixDir =~ s:^/::;
+	$fixDir =~ s:/$::;
+	$fixDir =~ s:/:_:g;
+	print "url\thttp://www.foxdigital.com/cgi-bin/tame/www.greatdanephotos.com/login.tam?usrpasswd.ctx=$fixDir\n";
+    }
+}
+

@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+use strict;
+use File::Path;
+use File::Spec;
+use File::Copy;
+use GDP::Paths;
+use GDP::Expando;
+use GDP::TabDb;
+use Getopt::Long;
+
+no  strict 'refs';
+
+my ($outputDir) = "/Users/johnsonb/Sites/newgdp/src";
+my ($labelFile) = ""; #"/GDP/gdcaLabels.txt";
+my ($winLabelFile) = "/GDP/winLabels.txt";
+my ($resultFile) = "/GDP/saturdayWins.txt";
+
+GetOptions( "labelFile=s" => \$labelFile, "results=s" => \$resultFile);
+
+my ($winLabels,%files,$winLabelData,$resultData);
+
+my ($labelData,$catalog);
+my($labelDefs) = [ "showName1","showName2","breed","class","sex","entry","serial","name","unknown","birthday","breeder","father","mother","owner","street1","street2","city","state","zip","handler","other1","other2"];
+
+#$GDP::TabDb::debug = 6;
+$labelData = GDP::TabDb::readFile($labelFile,$labelDefs);
+$GDP::TabDb::debug = 0;
+$resultData = GDP::TabDb::readFile($resultFile);
+print STDERR "results: " . scalar(@$resultData) . "\n";
+
+$winLabelData = GDP::TabDb::readFile($winLabelFile);
+$winLabels = GDP::TabDb::makeIndex($winLabelData,"win");
+#$GDP::TabDb::debug = 6;
+$catalog = GDP::TabDb::makeIndex($labelData,"entry");
+
+open(URLS , "</GDP/gdcaData/urls.txt");
+my(%urls);
+my ($urlline);
+while(<URLS>) {
+    chomp;
+    $urlline = $_;
+    $urlline =~ m:/([^/]*)$:;
+    my($entry);
+    $entry = $1;
+    $urlline .= "/index.html";
+    $urls{$entry} = $urlline ; 
+    print STDERR " url $entry as  $urlline\n";
+}
+
+my($row,$lastClass,$dog,$class);
+print "<table>";
+foreach $row ( @$resultData ) {
+    print STDERR "found result for " . $row->{'entry'} . "\n";
+    $dog = $catalog->{$row->{'entry'}};
+    if ( ! $dog ) {
+	print STDERR "no catalog result for " . $row->{'entry'} . "\n";
+    }
+    if ( $row->{'class'}) {
+	# override the section
+	$class = $winLabels->{$row->{'class'}}->{'label'};
+	if (! $class ) {
+	    $class = $row->{'class'};
+	}
+    } else {
+	#$class = $dog->{'sex'} . " " . $dog->{'class'};
+	$class =  $dog->{'class'};
+    }
+	
+    if ( $class ne $lastClass ) {
+	print "<tr><td colspan=2><font size=4>" . $class . "</font></td></tr>\n";
+	$lastClass = $class;
+    }
+    print "<tr><td valign=top align=right>" . $winLabels->{$row->{'win'}}->{'label'} . "</td><td>\n";
+    print "<!-- " . $dog->{'entry'} . "--!>\n";
+    print "<b><a href=\"" . $urls{$row->{'entry'}} . "\">" . $dog->{'name'} . "</a></b><br>\n";
+    print "Owner: ". $dog->{'owner'} . "<br>\n";
+    print "Breeder: " . $dog->{'breeder'} . "\n";
+    print "</td></tr>\n\n";
+}
+0;

@@ -1,0 +1,40 @@
+#!/usr/bin/perl
+# a utility to pull a receipt from the shopping system.
+
+use File::Path;
+
+# the webapp to pull from
+$baseUrl = "http://localhost:8080/shop";
+# for a list of printer names use "lpstat -d -p"
+$printer = "Canon_MF4400_Series___harp";
+#$printer = "HP_LaserJet_Professional_P_1102w";
+#$printer = "Brother_HL_2270DW_series_2";
+#$printer = "Brother_HL_2270DW_series";
+# where the receipts are stored
+$receiptDir = "/GDP/data/receipts";
+
+####################### End of config
+$cartId = $ARGV[0];
+$numCopies = $ARGV[1];
+
+if ( ! $cartId ) {
+  die "usage: printCart cartId\n";
+}
+if ( ! $numCopies ) {
+    $numCopies = 1;
+}
+mkpath($receiptDir);
+
+$pdfName = "cart_$cartId.pdf";
+# this command was before mavericks
+#$command = "wkpdf -s $baseUrl/admin/cart_receipt.do?cartId=$cartId -y print -p letter -m 36 -o ${receiptDir}/${pdfName}";
+# this is a newer version of the same thing
+$command = "/usr/local/bin/wkhtmltopdf -s Letter --print-media-type $baseUrl/admin/cart_receipt.do?cartId=$cartId ${receiptDir}/${pdfName}";
+
+print "$command\n";
+`$command`;
+
+$print = "lp -d $printer -n $numCopies ${receiptDir}/${pdfName}";
+
+print "$print\n";
+`$print`;

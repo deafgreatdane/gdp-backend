@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+# a routine to take a source dir full of desired images, a destination dir 
+# full of all original images, and delete any of the originals.
+
+use strict;
+use File::Find;
+
+my $sourceDir = $ARGV[0];
+my $destDir = $ARGV[1];
+
+if ( ! $sourceDir || ! -d $sourceDir || ! $destDir || ! -d $destDir) {
+   die &usage;
+}
+
+my %wantedNames;
+my @keepNames;
+my @discardNames;
+
+find( { "wanted" => \&findWanted },($sourceDir));
+
+print "found " . scalar(keys(%wantedNames)) . " files worth keeping in $sourceDir\n";
+
+find( { "wanted" => \&isDesired  },($destDir));
+    
+if ( scalar(@keepNames) != scalar(keys(%wantedNames)) ) {
+    print "hmm, number of keep (" . scalar(@keepNames) . ") does not match\n";
+    print " number of trimmed files (" . scalar(keys(%wantedNames)) . ")\n";
+    print " in $sourceDir\n";
+    #print join("\n   ",@discardNames);
+    #print join("\n   ",keys(%wantedNames));
+    print " are you sure you want to continue? ";
+    my $line = <STDIN>;
+    if ( $line !~ /y/i ) {
+	die " exiting\n";
+    }
+}
+
+print "found " . scalar(@discardNames) . " additional files not worth keeping in $destDir\n";
+
+if ( scalar(@discardNames) > 0 ) {
+    print "\nproceed with delete? ";
+    my $line = <STDIN>;
+    if ( $line =~/y/ ) {
+	my $discardFile;
+	foreach $discardFile (@discardNames) {
+	    #print " removing $discardFile\n";
+	    unlink($discardFile);
+	}
+    }
+} else {
+    print " nothing to do.  exiting\n";
+}
+sub findWanted {
+    return if -d $_;
+    return if $_ =~ /^\./;
+    return if $_ =~ /a\.jpg$/i;
+    my $source = $_;
+    $source =~ s/\....//;  #remove the 3 character extension
+    if ( $source !~ /^.\d\d\d\d\d\d\d$/) {
+      print "unknown file $source\n";
+    }
+
+    $wantedNames{$source} = 1;
+}
+
+sub isDesired {
+    return if -d $_;
+    return if $_ =~ /^\./;
+    my $source = $_;
+    $source =~ s/\....//;  #remove the 3 character extension
+    if ( $wantedNames{$source} ) {
+	# keep it
+	push(@keepNames,$File::Find::name);
+    } else {
+	push(@discardNames,$File::Find::name);
+    }
+}
+
+sub usage {
+    return "usage: trimFolder desiredFolder originalsFolder\n";
+}

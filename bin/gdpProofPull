@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+# take list of images and filename prefixes on stdin
+# and prompt for which of the disks it can be found on
+use lib "/GDP/lib";
+use strict;
+use File::Copy;
+use DBI;
+use GDP::OrderDb;
+
+my $dataDir = "/GDP/data/cdArchives";
+
+my $dogName = shift(@ARGV) ;
+my $dbh;
+my $imageToDestinations = {};
+
+if ( ! $dogName ) {
+  die "no dogName specified";
+}
+     $dbh = GDP::OrderDb::getDatabaseHandle();
+    my $sth = $dbh->prepare(qq{select distinct (image_number) from image ,path where image.location = path.location and path.label like '$dogName'});
+    $sth->execute();
+
+    my (@row,$imageNumber,$finalName);
+    while( @row = $sth->fetchrow_array()) {
+	my $path = {};
+	my( $imageNumber) = @row;
+	if ( ! $imageNumber ) {
+	    next;
+	}
+	print "want to do $imageNumber\n"
+    }
+
+

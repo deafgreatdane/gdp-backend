@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+
+package GDP;
+use strict;
+use File::Find;
+use File::Copy;
+
+my($baseUrl) = "http://kestrel.local:8080";
+
+my($cartId) = $ARGV[0];
+my($destBase) = $ARGV[1];
+
+
+if ( ! -d $destBase) {
+    die "usage: collectDownload cartId baseFolder";
+}
+
+my($workingDir) = "/tmp/collectDownload.$$";
+mkdir($workingDir);
+chdir($workingDir);
+
+$GDP::destDir = "${destBase}/GDP_cart${cartId}";
+mkdir($GDP::destDir);
+$GDP::doneFiles = 0;
+
+system("wget","-r","-q","$baseUrl/shop/cart_download.do?cartId=$cartId");
+
+sub wanted() {
+    if( ! /\.jpg/ ) {
+	return;
+    }
+    my ($jpg) = $_;
+    my (@pieces) = split(/\//, $File::Find::dir);
+    my ($parent) = pop( @pieces);
+    my($subFolder) = "${GDP::destDir}/$parent";
+    if ( ! -d $subFolder) {
+	mkdir($subFolder);
+    }
+    if ( ! copy($File::Find::name, "$subFolder/$jpg")) {
+	print "could copy $File::Find::name to $subFolder/$jpg, $!\n";
+	return;
+    }
+    $GDP::doneFiles++;
+    #print "GO: ${parent}_${jpg} $File::Find::name\n";
+}
+
+find(\&wanted, $workingDir);
+
+print "copied $GDP::doneFiles files\n";
+
+system("rm -r $workingDir");

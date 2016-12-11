@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+# A safety net during the consolidate process. After the manual consolidate 
+# actions are done with a directory full of images, this is run to confirm 
+# that every order consolidated all the proper images.
+#
+# Run this from the directory containing the raw images: 
+#  cartConfirm destinationDirectory
+#
+
+$destDir = $ARGV[0];
+
+if ( ! -d $destDir ) {
+  print "usage: cartConfirm destinationDir\n";
+  exit(0);
+}
+while(1) {
+
+ print "enter an order number: ";
+ $order = <STDIN>;
+ chomp($order);
+ 
+ $command = "ls *" . $order . "*";
+ print " running $command \n";
+ @images = `$command`;
+ print @images ;
+ print scalar(@images) . " found. ";
+ print "OK? [y]";
+ $answer = <STDIN>;
+ if( $answer !~ /n/ ) {
+  $command = "mv *" . $order . "* $destDir";
+  `$command`;
+  print "moved them.\n";
+ } else {
+  print "no action\n";
+ }
+  
+}

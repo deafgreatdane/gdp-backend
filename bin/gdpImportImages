@@ -1,0 +1,116 @@
+#!/usr/bin/perl
+use strict;
+use File::Copy;
+
+my $homeDir = "/Users/johnsonb";
+my $desktop = "$homeDir/Desktop";
+my $volumeRoot = "/Volumes/iBook HD";
+
+######## CONFIGURATION
+
+# the root of where the local webapp pulls its images
+my $destRoot = "/Web/proofImages";
+# the root of the originals file
+my $srcRoot = "$volumeRoot/GDP/originals";
+# the root of the small images
+my $imageSrcRoot = "$volumeRoot/GDP/small";
+
+########## validate inputs
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    die "usage; gdpImportImages eventCode\n";
+}
+
+my $destDir = "$destRoot/$eventCode";
+if ( ! -d $destDir ) {
+    die "destination directory does not exist: $destDir\n";
+}
+my $srcDir = "$srcRoot/$eventCode";
+if ( ! -d $srcDir ) {
+    die "originals directory does not exist: $srcDir\n";
+}
+my $imageSrcDir = "$imageSrcRoot/$eventCode";
+if ( ! -d $imageSrcDir ) {
+    die "small images directory does not exist: $imageSrcDir";
+}
+
+######## do the work
+
+proofDir("",0);
+
+sub proofDir {
+    my ($currentDir) = shift(@_);
+    my ( $depth ) = shift(@_);
+    # make sure this exists in the destination hierarchy
+    mkdir("$destDir$currentDir");
+
+    # read the current directory contents
+    print STDERR "doing $currentDir\n";
+    if  ( ! opendir(DIR,"$srcDir$currentDir") ) {
+	print STDERR " could not open $srcDir$currentDir\n";
+	return;
+    }
+    my @choiceList;
+    my $choice;
+    while( $choice = readdir(DIR)) {
+	next if $choice =~ /^\./;
+	next if $choice =~ /^_/;
+	next if $choice =~ /.html/i;
+	push(@choiceList,$choice);
+    }
+    closedir(DIR);
+
+    # crawl down into subdirectories
+    my $proofCount = 0 ;
+    foreach $choice (@choiceList) {
+	if ( -d "$srcDir$currentDir/$choice" ) {
+	    $proofCount++;
+	    proofDir("$currentDir/$choice",$depth+1);
+	}
+    }
+
+    # otherwise, import the proofs
+    if ( $proofCount == 0 ) {
+	# then there weren't any subdirectories, so
+	# copy images
+	print STDERR " images : " . @choiceList . "\n";
+	foreach $choice (@choiceList) {
+	    next if $choice =~ /^\./;
+	    next if $choice =~ /^a.jpg/;
+	    next if $choice !~ /.jpg/i;
+
+	    copyFile("$imageSrcDir/$choice","$destDir$currentDir/$choice");
+
+	    my $masterThumb = $choice;
+	    $masterThumb =~ s:.jpg:a.jpg:i;
+	    copyFile("$imageSrcDir/$masterThumb","$destDir$currentDir/$masterThumb");
+
+	}
+    } 
+}
+
+sub copyFile($sourcePath,$destPath) {
+	    if ( ! -e $sourcePath ) {
+		print STDERR " no view image found at $sourcePath\n";
+		return;
+	    } elsif ( -e $destPath) {
+		print STDERR " exists $destPath\n";
+		return;
+	    } else {
+		print STDERR "copy $sourcePath -> $destPath\n";
+		copy($sourcePath,$destPath) || die;
+	    }
+
+}
+sub getCameraInfo {
+    my $imageName = shift;
+    my $retval;
+    foreach $retval ( @$shooterCatalog ) {
+	if ( ! $retval->{'cameraPrefix'} ) {
+	    next;
+	}
+	if ( $imageName =~ /$retval->{'cameraPrefix'}/) {
+	    return $retval;
+	}
+    }
+}

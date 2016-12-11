@@ -1,0 +1,259 @@
+#!/usr/bin/perl
+# an interactive script for sorting images 
+
+use strict;
+
+my $tempDir = shift(@ARGV);
+my $destDir = shift(@ARGV);
+
+if ( ! $tempDir || ! $destDir) {
+    print STDERR "usage: fancySort inputdir outputdir\n";
+    exit(2);
+}
+
+if ( ! -d $destDir ) {
+    mkdir $destDir || die;
+}
+
+# read in the existing dir names
+opendir(DIR, $destDir);
+my $tmpDir;
+my $knownDirs = {};
+while ( $tmpDir = readdir(DIR)) {
+    next if $tmpDir =~ m:^\.:;
+    $knownDirs->{$tmpDir} = [];
+}
+closedir(DIR);
+
+# read in the pending images
+opendir(DIR, $tempDir);
+my $tmpDir;
+my @todoImages ;  		# this will a list of remaining images
+my %allImages;			# a hash of 4 digit image number to the image ref
+while ( $tmpDir = readdir(DIR)) {
+    next if $tmpDir =~ m:^\.: ;
+    next unless $tmpDir =~ m:jpg$:i;
+    my $imageRef = {};
+    $imageRef->{'file'} = $tmpDir;
+    $tmpDir =~ m:^....(\d\d\d\d):;
+    $imageRef->{'number'} = $1;
+    push(@todoImages,$imageRef);
+    $allImages{$imageRef->{'number'}} = $imageRef;
+}
+closedir(DIR);
+
+# now get to the work of figuring out the actions
+&interactiveUsage();
+my $baseDir;
+my $moreInput = 1;
+my ($newDir);
+while ($moreInput) {
+    my $line = getLine("> ");
+    $moreInput = processInput($line);
+}
+exit(0);
+
+#####################################
+sub interactiveUsage {
+    print "available commands\n";
+    print " c dir num : create a directory\n";
+    print "     dir is the new directory to put stuff in\n";
+    print "     num is an image number spec\n";
+    print " p : preview\n";
+    print " f : fill in gaps\n";
+    print " g : go / do it\n";
+    print " u num : undo selected images\n";
+    print " q : quit\n";
+    print " ? : this help screen\n";
+
+}
+sub getLine {
+    my $prompt = shift;
+    print $prompt;
+    my $line = <STDIN>;
+    chop($line);
+    return $line;
+}
+sub processInput {
+    my $line = shift;
+    my ($command,$arg1,$arg2) = split(/\s/,$line);
+    if ( $command eq "?" ) {
+	&interactiveUsage();
+    } elsif ( $command eq "c" ) {
+
+	if ( ! $arg1 ) {
+	    return &continuousCreate;
+	} else {
+	    return &applyCreate($arg1,$arg2);
+	}
+    } elsif ( $command eq "p") {
+	my $f ;
+	foreach $f ( @todoImages ) {
+	    print $f->{'file'} . " -> " . $f->{'destination'} . "\n";
+	}
+    } elsif ( $command eq "f") {
+	my @boundaries = sort(getImageNumbers( getRemainingTodo(1)));
+	if ( scalar(@boundaries) == 0 ) {
+	    print " no existing boundaries defined\n";
+	    return 1;
+	} 
+	my @allImageNumbers = sort(getImageNumbers( getRemainingTodo()));
+	my $number;
+	my $nextBoundary = 0;
+	my $nextDestination;
+	my $fillCount = 0;
+	foreach $number (@allImageNumbers) {
+	    if ( $number > $nextBoundary ) {
+		$nextBoundary = shift(@boundaries);
+		if ( ! $nextBoundary ) {
+		    last;
+		}
+		$nextDestination = $allImages{$nextBoundary}->{'destination'};
+	    }
+	    my $f = $allImages{$number};
+	    # give this to the next boundary
+	    $f->{'destination'} = $nextDestination;
+	    $fillCount++;
+	}
+	print "filled in $fillCount items\n";
+    } elsif ( $command eq "g") {
+	my $imageRef;
+	my @remainder;
+	foreach $imageRef ( @todoImages ) {
+	    if ( ! $imageRef->{'destination'}) {
+		push (@remainder,$imageRef);
+		next;
+	    }
+	    if (! -d "$destDir/" . $imageRef->{'destination'} ) {
+		mkdir ("$destDir/" . $imageRef->{'destination'} );
+	    }
+	    my $command = "mv $tempDir/" . $imageRef->{'file'} . " $destDir/" . $imageRef->{'destination'};
+	    print "$command\n";
+	    `$command`;
+	}
+	@todoImages = @remainder;
+    } elsif ( $command =~ /^q/ ) {
+	if ( scalar( getRemainingTodo()) > 0 ) {
+	    print " there is undone work, are you sure you want to quit? y/n ";
+	    my $response = <STDIN>;
+	    if ( $response =~ m/y/i ) {
+		return 0;
+	    } else {
+		return 1;
+	    }
+	} else {
+	    return 0;
+	}
+    } elsif ( $command eq "u" ) {
+	my $imageRef;
+	my @pending = parseImageNumbers($arg1,0);
+	foreach $imageRef ( @pending ) {
+	    $imageRef->{'destination'} = '';
+	}
+	print "undid " . scalar(@pending) . " to $arg1\n";
+    } else {
+	print "fwuh? $command\n";
+    }
+    return 1;
+}
+
+sub applyCreate {
+    my $arg1 = shift;
+    my $arg2 = shift;
+    if ( !$arg1 || ! $arg2 ) {
+	return 1;
+    }
+    my @pending = parseImageNumbers($arg2,1);
+    my $imageRef;
+    foreach $imageRef ( @pending ) {
+	$imageRef->{'destination'} = $arg1;
+    }
+    print "applied " . scalar(@pending) . " to $arg1\n";
+}
+sub continuousCreate {
+    my ($arg1,$arg2);
+    while(1) {
+	if ( ! $arg1 ) {
+	    my $line = getLine("create folder > ");
+	    ($arg1, $arg2) = split(/\s/,$line);
+	}
+	return 1 unless $arg1;
+	if ( ! $arg2 ) {
+	    $arg2 = getLine("create using number(s) > ");
+	}
+	return 1 unless $arg2;
+	&applyCreate($arg1,$arg2);
+	$arg1 = $arg2 = "";
+    }
+}
+sub getRemainingTodo {
+    my $inverse = shift;
+    my @retval;
+    my $f ;
+    foreach $f ( @todoImages ) {
+	if ( $f->{'destination'} && $inverse ) {
+	    push(@retval,$f);
+	} elsif ( ! $f->{'destination'} && ! $inverse ) {
+	    push (@retval,$f);
+	}
+    }
+    return @retval;
+}
+
+sub getImageNumbers {
+    my @refs = @_;
+    my @retval;
+    my $f ;
+    foreach $f ( @refs) {
+	push(@retval,$f->{'number'});
+    }
+    return @retval;
+}
+# given an input, return an array of image objects
+# known inputs:
+# NNNN a single image
+# -NNNN any image <= NNNN that isn't already processed (unless ! skipIfDone)
+# NNNN-NNNN
+# *   all 
+sub parseImageNumbers {
+    my ($input,$skipIfDone) = @_;
+    my @retval;
+    my $imageRef ;
+    if ( $input =~ m:^\d\d\d\d$: ) {
+	foreach $imageRef ( @todoImages ) {
+	    if ( $imageRef->{'number'} eq $input ) {
+		push(@retval,$imageRef);
+	    }
+	}
+    } elsif ( $input =~ m:^-(\d\d\d\d)$: ) {
+	my $upperLimit = $1;
+	foreach $imageRef ( @todoImages ) {
+	    if ( $imageRef->{'destination'}  && $skipIfDone) {
+		next;
+	    }
+	    if ( $imageRef->{'number'} <= $upperLimit ) {
+		push(@retval,$imageRef);
+	    }
+	}
+    } elsif ( $input =~ m:^(\d\d\d\d)-(\d\d\d\d)$: ) {
+	my $lowerLimit = $1;
+	my $upperLimit = $2;
+	foreach $imageRef ( @todoImages ) {
+	    if ( $imageRef->{'destination'}  && $skipIfDone) {
+		next;
+	    }
+	    if ( $imageRef->{'number'} <= $upperLimit && $imageRef->{'number'} >= $lowerLimit ) {
+		push(@retval,$imageRef);
+	    }
+	}
+    } elsif ( $input eq "*" ) {
+	foreach $imageRef ( @todoImages ) {
+	    if ( $imageRef->{'destination'}  && $skipIfDone ) {
+		next;
+	    }
+	    push(@retval,$imageRef);
+	}
+    }
+    return @retval;
+}
+

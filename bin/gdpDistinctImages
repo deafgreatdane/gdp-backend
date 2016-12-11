@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+# given the current directory full of regularly consolidated images,
+# this will reduce the folder to the distinct images available.
+# Amy will take that list, and make the unique list of PSDs
+# As a hack, this list can then be used as a consolidate directory
+# from the app, do another consolidate, and then the only thing left is to
+# select the cropping and other stuff.
+
+
+use strict;
+my $i;
+foreach $i (<*>) {
+    next unless -f $i;
+    my ( $image, $ext);
+    $i =~ m:_([^_]+)\.(...)$:;
+
+    $image = $1;
+    $ext = $2;
+    my $newName = "${image}.$ext";
+    if ( -e $newName ) {
+	print "$i already moved to $newName\n";
+	unlink($i);
+    } else {
+	rename($i,$newName);
+	print "moved $i -> $newName\n";
+    }
+}

@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+$sourceDir = "/GDP/originals/0410gdca";
+$tempDir = "/tmp/0410gdca_tmp";
+$jpgDir = "/GDP/sorted/0410gdca/08bob";
+
+mkdir $tempDir;
+
+while (1) {
+    print "put images into $sourceDir.\nPress any return to continue...";
+    $line = <STDIN>;
+    print "putting images into $tempDir...\n";
+    `find $sourceDir -name \\*.JPG -exec mv {} $tempDir \\;`;
+    print "    ... done\n";
+    print "fixing image names in $tempDir...\n";
+    `gdpFixImageNames $tempDir`;
+    print "    ... done\n";
+    $moreInput = 1;
+    while ( $moreInput) {
+	print "enter a new group name:  (blank to finish)";
+	$newDir = <STDIN>;
+	chop($newDir);
+	if ( $newDir ) {
+	    mkdir("$jpgDir/$newDir");
+	    #$line = <STDIN>;
+	    print "enter the last 4 digit in $newDir (blank for 9999)\n";
+	    $newNum = <STDIN>;
+	    chop($newNum);
+	    if ( $newNum <= 0 ) {
+		$newNum = 9999;
+		$moreInput = 0;
+	    }
+	    opendir(LIST,$tempDir);
+	    while($subImage = readdir(LIST)) {
+		next if $subImage =~ m:^\.:;
+		next if $subImage !~ m:jpg:i;
+		$subImage =~ m:(\d\d\d\d)\.jpg:i;
+		$subNum = $1;
+		if ( $subNum > 0 && $subNum <= $newNum ) {
+		    
+		    `mv $tempDir/$subImage $jpgDir/$newDir`;
+		    print "   moved $subImage to $newDir\n";
+		}
+	    }
+	} else {
+	    $moreInput = 0;
+	}
+    }
+    print "run jalbom.  press <return> when done\n";
+    $line = <STDIN>;
+    print "running gdpJalbumImport...\n";
+    `gdpJalbumImport 0410gdca`;
+    print "   ... done";
+    print "******** Done\n\n";
+}

@@ -1,0 +1,12 @@
+#!/usr/bin/perl
+
+use GDP::Text;
+
+while (<STDIN>) {
+    chomp;
+    next if ! GDP::Text::trim($_);
+      @line = GDP::Text::convertCsvToTabs($_);
+      print join("\t",@line) ;
+      print "\n";
+}
+

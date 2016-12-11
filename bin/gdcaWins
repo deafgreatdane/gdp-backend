@@ -1,0 +1,346 @@
+#!/usr/bin/perl
+use strict;
+use File::Path;
+use File::Spec;
+use File::Copy;
+use GDP::Paths;
+use GDP::Expando;
+use GDP::TabDb;
+use Getopt::Long;
+
+# deal with an instruction file to generate pages that can in turn be generated
+# files.
+# "file" relativeFile
+# a file to generate in the system
+
+# "title" value
+# a title for file
+
+# "skip"
+# do not generate the previous file
+
+# "image" imageNumber
+# an image to be displayed on the last file
+
+# "abbrev" set short long
+# set abbreviations.  "set" is a grouping of name/val
+
+# "include" file
+
+# "label" value
+# "name" value
+# "owner" value
+# "breeder" value
+
+no  strict 'refs';
+
+my ($outputDir) = "/Users/johnsonb/Sites/newgdp/src";
+my ($labelFile) = "/GDP/gdcaLabels.txt";
+my ($winFile) = "/GDP/gdcaWins.txt";
+my($winLabelFile) = "/GDP/winLabels.txt";
+my($abbreviations) = {};
+GetOptions( "labelFile=s" => \$labelFile, "outputDir=s" => \$outputDir );
+
+my (%winLabels,%files,%images);
+
+my ($catalogData,$catalog);
+my($catalogDefs) = [ "showName1","showName2","breed","class","sex","entry","serial","name","unknown","birthday","owner","father","mother","breeder","street1","street2","city","state","zip","handler","other1","other2"];
+$catalogData = GDP::TabDb::readFile($labelFile,$catalogDefs);
+$catalog = GDP::TabDb::makeIndex($catalogData,"entry");
+
+my($currentFile);
+my($currentImage);
+my($currentItem);
+while(<>) {
+    chomp;
+    next if ! $_;
+    my(@vals) = split(/\t/,$_);
+    my($tag) = shift(@vals);
+    if ( $tag eq "file") {
+	my ($fileName) = shift(@vals);
+
+	$currentImage = "";
+	# add to an existing file, or make a new one
+	if ( $files{$fileName} ) {
+	    print "new file: $fileName\n";
+	    $currentFile = $files{$fileName};
+	} else {
+	    $currentFile = {};
+	    $files{$fileName} = $currentFile;
+	    $currentFile->{'file'} = $fileName;
+	    $currentFile->{'children'} = [];
+	    $currentFile->{'images'} = [];
+	    print "new file: $fileName\n";
+	    my ( $parentDir ) = GDP::Paths::getParentDirectoryOf($fileName);
+	    if ( $files{$parentDir} ) {
+		push(@{$files{$parentDir}->{'children'}},$currentFile);
+	    }
+	}
+	$currentItem = $currentFile;
+    } elsif ( $tag eq "skip") {
+	$currentFile->{'skip'} = 1;
+    } elsif ( $tag eq "place" ) {
+	$currentItem->{'place'} = expandAbbreviation("place",shift(@vals));
+    } elsif ( $tag eq "image") {
+	my ($imageNumber) = shift(@vals);
+	
+	if ( $images{$imageNumber}) {
+	    # it already exists
+	    $currentImage = $images{$imageNumber};
+	} else {
+	    my $currentImage = {};
+	    $currentImage->{'number'} = $imageNumber;
+	    $currentImage->{'place'} = expandAbbreviation("place",shift(@vals));
+	    my $fileName = $imageNumber;
+	    # hack for old filenames
+	    #$fileName =~ s/c002/654E/;
+	    $currentImage->{'fileName'} = $fileName . ".jpg";
+
+	    print "image: " . $currentImage->{'number'} . "\n";
+	    push(@{$currentFile->{'images'}},$currentImage);
+	}
+	$currentItem =$currentImage;
+    } elsif ( $tag eq "abbrev") {
+	my($setLabel) = shift(@vals);
+	my($short) = shift(@vals);
+	my($long) = shift(@vals);
+	my ($set) = $abbreviations->{$setLabel};
+
+	if ( ! $set ) {
+
+	    $set = {};
+	    $abbreviations->{$setLabel} = $set;
+	}
+	#print STDERR " adding abbrev $setLabel (" . scalar(keys(%$set)) . ") $short $long\n";
+	$set->{$short} = $long;
+    } elsif ($tag eq "title" || 
+	     $tag eq "include" ) {
+	$currentItem->{$tag} = $vals[0];
+    } else {
+	print "unknown win line: $_\n";
+    }
+}
+
+foreach $currentFile ( values(%files)) {
+    my $fileName = $currentFile->{'file'};
+    if ( $currentFile->{'skip'}) {
+	print "\n   skip: $fileName\n";
+	next;
+    }
+    print "\ngenerate: " . $currentFile->{'file'} . "\n";
+    print "   title: " . $currentFile->{'title'} . "\n";
+    if ( GDP::Paths::isDirectory($fileName)) {
+	my $dirName =GDP::Paths::getDirectoryOf("$outputDir$fileName");
+	$dirName =~ s:/$::;
+	if ( ! -d $dirName) {
+	    mkpath($dirName) || warn("could not create parent $dirName");	
+	}
+    }
+
+
+    open(OUT,">$outputDir" . getUrl($fileName));
+
+    print OUT qq!<% set("tabBar","/page_elements/tabs/eventtab.html") %>\n!;
+    print OUT qq!<% set("title","Events - ") %>\n!;
+    print OUT qq!<% include("/_top.html") %>\n!;
+
+    print OUT '<font size=2>';
+    print OUT getBreadCrumb($currentFile->{'file'});
+    print OUT '</font>';
+
+    print OUT '<br><table width="100%" cellpadding="10"><tr>';
+
+    if ( isLeaf($currentFile)) {
+	print OUT '<td valign="top">';
+    } else {
+	print OUT '<td width="100%" valign="top">';
+	print OUT getSideLinks($currentFile);
+	print OUT '</td><td valign="top">';
+    }
+    print OUT '</td><td valign="top">';
+    if ( $currentFile->{'include'} ) {
+	print OUT "<% include(\"" . $currentFile->{'include'} . "/_top.html\") %>\n";
+    }
+
+    my ($image) ;
+    if ( scalar(@{$currentFile->{'images'}}) > 0 ) {
+	print OUT qq!<% include("/shows2004/0402makintrax/_order.html") %>\n!;
+    }
+    print OUT '<table width="100%"><tr>';
+    my $imageCount = 0;
+    foreach $image (@{$currentFile->{'images'}}) {
+	print OUT "</tr><tr>" if $imageCount > 0 && ($imageCount % 2 ) == 0 ;
+	print OUT "\n";
+	print OUT "<td valign=\"top\" align=\"center\">";
+	print OUT "<b>" . $image->{'winLabel'} . "</b><br>\n";
+	print OUT  $catalog->{$image->{'entry'}}->{'name'} . "<br>\n";
+	print OUT '<img src="/shows2004/0402makintrax/_images/' . $image->{'fileName'} . '" border=1>';
+	print OUT '<br><font size=1>( ' . $image->{'number'} . ' )</font>' ;
+	print OUT "\n";
+	print "   image: " . $image->{'number'} . " as " . $image->{'label'} . "\n";
+	print OUT "</td>";
+	$imageCount++;
+    }
+    print OUT '</tr></table>';
+    print OUT "</td></tr></table>\n";
+    print OUT qq!<% include("/_bottom.html") %>\n!;
+    close(OUT);
+}
+
+sub expandAbbreviation {
+    my ($setId) = shift;
+    my ($place) = shift;
+    my ($set) = $abbreviations->{$setId};
+    if ( ! $place) {
+	return "";
+    } elsif ( $set->{$place}) {
+	return $set->{$place};
+    } else {
+	return $place;
+    }
+}
+sub getBreadCrumb {
+    my($fileName) = shift;
+    my($file) = $files{$fileName};
+    if ( ! $file ) {
+	return "";
+    }
+    my($retval) = $file->{'title'};
+    return getBreadCrumbLink( GDP::Paths::getParentDirectoryOf($fileName)) .  $retval;
+    
+}
+sub getBreadCrumbLink {
+    my ($fileName) = shift;
+    my ($file) = $files{$fileName};
+    if ( ! $file ) {
+	return "";
+    }
+    return getBreadCrumbLink( GDP::Paths::getParentDirectoryOf($fileName)) . 
+	getHref($fileName,$file->{'title'}) . " &gt;\n";
+    
+}
+sub getHref {
+    my ($href, $text) = @_;
+    if ( ! $href || ! $text ) {
+	return "<!-- incomplete url for $href,$text -->";
+    }
+    return "<a href=\"". getUrl($href) . "\">$text</a>";
+}
+sub isLeaf {
+    my ($currentFile ) = shift;
+    my $retval = 0;
+    $retval += scalar(@{$currentFile->{'children'}});
+    return $retval == 0;
+}
+sub getSideLinks {
+    my ($currentFile ) = shift;
+    my ($relativeTo ) = shift;
+    my ($child) ;
+    my ($retval) = "<ul>";
+    foreach $child (@{$currentFile->{'children'}}) {
+	print "     sub: " . $child->{'file'} . "\n";
+	$retval .= "<li>" . getHref($child->{'file'},$child->{'title'}) . "\n";
+	if ( $child->{'place'} ) {
+	    $retval .= "\t(" . $child->{'place'} . ")\n";
+	}
+    }
+
+    $retval .= "</ul>";
+    return $retval;
+}
+
+sub getNextFile {
+    my ($current) = shift;
+    print  "  next: " . $current->{'file'} . "\n";
+    if ( GDP::Paths::isDirectory($current->{'file'})) {
+	if ( ! isLeaf($current)) {
+	    # walk down into the sub dirs
+	    return $current->{'children'}->[0];
+	} else {
+	    # leaf node, so get the next sibling of this one
+	    return getNextSiblingOf($current);
+	}
+    } else {
+	# it's a plain file, so just get the next sibling
+	return getNextSiblingOf($current);
+    }
+}
+sub getNextSiblingOf {
+    my $current = shift;
+    my ($parentFile) = getParentFile($current);
+    return if ! $parentFile;
+    print  "  next: " . $current->{'file'} . "\n";
+    my ($tmp) = getNextInArray($parentFile->{'children'},$current);
+    if ( $tmp ) {
+	return $tmp;
+    } else {
+	return getNextSiblingOf($parentFile);
+    }
+}
+sub getNextInArray {
+    my( $listRef, $current) = @_;
+    my ($tmp,$wantNext);
+    $wantNext = 0;
+    foreach $tmp (@{$listRef}) {
+	if ( $wantNext ) {
+	    return $tmp;
+	}
+	if ( $tmp->{'file'} eq $current->{'file'}) {
+	    $wantNext = 1;
+	}
+    }
+    return "";
+}
+
+sub getPrevFile {
+    my $current = shift;
+    my ($parentFile) = getParentFile($current);
+    return if ! $parentFile;
+    print  "  prev1: " . $current->{'file'} . "\n";
+    my $tmp = ( getPrevInArray($parentFile->{'children'},$current));
+    if ( ! $tmp ) {
+	return getParentFile($current);
+    } else {
+	return getLastFile($tmp);
+    }
+
+}
+sub getLastFile {
+    my $current = shift;
+    if ( ! $current ) {
+	return "";
+    } elsif ( isLeaf($current) ) {
+	return $current;
+    } else {
+	my $index = scalar( @{$current->{'children'}}) - 1;
+	print "   prev2: index $index in " . $current->{'file'} . "\n";
+	return getLastFile($current->{'children'}->[ $index ]);
+    }
+}
+sub getPrevInArray {
+    my( $listRef, $current) = @_;
+    my ($tmp,$last);
+    $last = "";
+    foreach $tmp (@{$listRef}) {
+	if ( $tmp->{'file'} eq $current->{'file'}) {
+	    return $last;
+	}
+	$last = $tmp;
+    }
+    return "";
+}
+sub getParentFile {
+    my $current = shift;
+    my $parentFile = GDP::Paths::getParentDirectoryOf($current->{'file'});
+    return if ( ! $parentFile);
+    return $files{$parentFile};
+}
+sub getUrl {
+    my $fileName = shift;
+    if ( GDP::Paths::isDirectory($fileName)) {
+	return $fileName . "index.html";
+    } else {
+	return $fileName;
+    }
+}
+0;

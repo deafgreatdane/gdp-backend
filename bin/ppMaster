@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+
+# run the routines for pumping a site to photoPreviews
+use DBI;
+use strict;
+#############
+my $siteSourceDir = "/Users/johnsonb/Sites/newgdp/src";
+
+##############
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    print STDERR "usage: ppMaster eventCode\n";
+    exit(2);
+}
+
+# figure out the shows folder
+$eventCode =~ m:^(..):;
+my $showPath = "/shows20$1";
+
+# create theworking Directory
+my $workingDir = "/GDP/data/$eventCode";
+if ( ! -d $workingDir ) {
+   mkdir("$workingDir") || die;
+}
+chdir("$workingDir");
+
+# extract the data file
+`ppData /$eventCode $showPath > ${eventCode}_proof.txt`;
+
+# extract the text file for creating photoPreviews clients
+`ppDirList $eventCode  >  ${eventCode}_dirlist.txt`;
+
+# convert the data file into a template site
+`ppGenerate ${eventCode}_proof.txt`;
+
+
+# convert the template site into real html
+chdir ( $siteSourceDir ) ;
+`siteCreate $showPath/$eventCode`;
+`open -a Safari ../out$showPath/$eventCode/index.html`;
+

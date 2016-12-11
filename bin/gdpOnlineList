@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use File::Copy;
+# this file generates a "list.txt" file in */slides
+# for use by Photo Preview
+# the file contains just the filename, no extention
+
+########## validate inputs
+my $workingDir = shift(@ARGV);
+
+if ( ! $workingDir ) {
+    die "usage; gdpOnlineList directory\n";
+}
+
+######## do the work
+my ($parentDir,@directoriesTodo);
+if  ( ! opendir(DIR,"$workingDir") ) {
+    die " could not open $workingDir\n";
+}
+while ( $parentDir = readdir(DIR)) {
+    next if $parentDir =~ /^\./;
+    next if ! -d $parentDir;
+    push(@directoriesTodo, "$parentDir/slides");
+}
+closedir(DIR);
+
+
+my $currentDir;
+while ( $currentDir = shift(@directoriesTodo)) {
+
+    # read the current directory contents
+    print STDERR "doing $currentDir\n";
+    if  ( ! opendir(DIR,"$currentDir") ) {
+	print STDERR " could not open $currentDir\n";
+	next;
+    }
+    open( LIST, ">$currentDir/list.txt");
+    my $choice;
+    while( $choice = readdir(DIR)) {
+	#print STDERR "$choice\n";
+	next if $choice =~ /^\./;
+	next if $choice =~ /^_/;
+	next if $choice !~ /.jpg$/i;
+
+	
+	$choice =~ s/.jpg$//i;
+	print LIST "$choice\n";
+    }
+    close(LIST);
+    closedir(DIR);
+}
+
+

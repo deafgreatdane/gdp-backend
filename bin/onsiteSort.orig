@@ -1,0 +1,96 @@
+#!/usr/bin/perl
+
+use strict;
+use GDP::Config;
+
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    print STDERR "usage: onsiteSort eventCode\n";
+    exit(2);
+}
+
+my $sourceDir = "/GDP/originals/$eventCode";
+my $tempDir = "/tmp/${eventCode}_tmp";
+
+my $jpgDir = "/GDP/sorted/$eventCode";
+
+if ( ! -d $tempDir ) {
+    mkdir $tempDir || die;
+}
+if ( ! -d $jpgDir ) {
+    mkdir $jpgDir || die;
+}
+
+my $baseDir;
+
+while (1) {
+    print "put images into $sourceDir.\nPress any return to continue...";
+    my $line = <STDIN>;
+    print "putting images into $tempDir...\n";
+    `find $sourceDir -name \\*.JPG -exec mv {} $tempDir \\;`;
+    print "    ... done\n";
+    print "fixing image names in $tempDir...\n";
+    `gdpFixImageNames $tempDir`;
+    print "    ... done\n";
+    my $moreInput = 1;
+    my ($newDir);
+    while ( $moreInput) {
+	($baseDir,$newDir) = chooseDirectory();
+	if ( $newDir ) {
+	    mkdir("$jpgDir/$baseDir/$newDir");
+	    #$line = <STDIN>;
+	    print "enter the last 4 digit in $newDir (blank for 9999)\n";
+	    my $newNum = <STDIN>;
+	    chop($newNum);
+	    if ( $newNum <= 0 ) {
+		$newNum = 9999;
+		$moreInput = 0;
+	    }
+	    opendir(LIST,$tempDir);
+	    my $subImage;
+	    while($subImage = readdir(LIST)) {
+		next if $subImage =~ m:^\.:;
+		next if $subImage !~ m:jpg:i;
+		$subImage =~ m:(\d\d\d\d)\.jpg:i;
+		my $subNum = $1;
+		if ( $subNum > 0 && $subNum <= $newNum ) {
+		    
+		    `mv $tempDir/$subImage $jpgDir/$baseDir/$newDir`;
+		    print "   moved $subImage to $baseDir/$newDir\n";
+		}
+	    }
+	} else {
+	    $moreInput = 0;
+	}
+    }
+    print "run jalbom.  press <return> when done\n";
+    $line = <STDIN>;
+    print "running gdpJalbumImport...\n";
+    `gdpJalbumImport $eventCode`;
+    print "   ... done";
+    print "running loadFromDisk...\n";
+    my $reloadCommand = "curl http://" . 
+	GDP::Config->Get('server.name') . ":" .
+	GDP::Config->Get('server.port') . "/orders/admin/load_paths.do?location=/$eventCode/";
+    `$reloadCommand`;
+    print "   ... done";
+    print "******** Done\n\n";
+}
+
+sub chooseDirectory {
+    if ( ! $baseDir ) {
+
+	print "what is the parent directory?";
+	my $subDir = <STDIN>;
+	chop $subDir;
+	if ( ! -d "$jpgDir/$subDir") {
+	    mkdir("$jpgDir/$subDir") ;
+	}
+	$baseDir = $subDir;
+    }
+
+    print "enter a new group name, relative to $baseDir : (blank to finish)";
+    my $newDir = <STDIN>;
+    chop($newDir);
+    return ($baseDir,$newDir);
+}

@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+while(<>) {
+    next if m/^\*AB\//;
+    chomp;
+	# $_ =~ s/[ \-\"\']//g;
+	@parts = split(/,/);
+	$dog = $parts[0];
+	$name = $parts[1];
+	$name =~ s:/.*::;
+	@nameparts = split(/ /, $name);
+	$lastName = pop(@nameparts);
+
+	$dog =~ s/[ \-\"\']//g;
+	$lastName =~ s/[ \-\"\']//g;
+	print "\L$dog\E$lastName\n";
+}

@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+# rules:
+# create two or more columns, first column is dog, second is name
+# split on tab
+# 
+$file = "/tmp/runningList";
+print "doing $file";
+system("pbpaste -Prefer txt > $file");
+`cat $file | convertRunningList | pbcopy`;
+#unlink("file");
+

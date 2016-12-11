@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+# take list of images and filename prefixes on stdin
+# and prompt for which of the disks it can be found on
+use strict;
+use File::Copy;
+
+my $dataDir = "/GDP/data/cdArchives";
+my $outputDir = "/GDP/consolidate";
+
+######## CONFIGURATION
+my $line;
+my @matches;
+my @lines;
+$/ = "\r";
+while($line = <> ) {
+    chop($line);
+    push(@lines,$line);
+}
+
+$/ = "\n";
+# ignore the column headers
+pop(@lines);
+while ( scalar(@lines) > 0 ) {
+    my $nextDisc = "";
+    my @remainderLines;
+    my $copied = 0;
+    foreach $line (@lines) {
+	#print ($line . "---\n");
+	my ( $imageNumber,$theRest ) = split(/\s/,$line,2);
+	@matches = `grep $imageNumber $dataDir/*`;
+	
+	my $fileName;
+	my $findLine;
+	my $sourceDisc;
+	if ( ! scalar(@matches)) {
+	    print "$imageNumber $line not found on any disc\n";
+	    next;
+	} else {
+	    $findLine = $matches[0];
+	    chop($findLine);
+	    my ($sourceDisc,$fileName) = split(/:/,$findLine);
+	    #print $fileName . "+++\n";
+	    $fileName =~ m:(\.[^.]*)$:;
+	    my $outputFile = $imageNumber . $1;
+	    if ( ! -e $outputFile ) {
+		if ( -e $fileName ) {
+		    print "$sourceDisc\n\t$fileName\n\t$outputFile\n";
+		    copy($fileName,$outputFile);
+		    $copied++;
+		} else {
+		    print "\t** $fileName not found on this disc : ($outputFile)\n" if ! $nextDisc ;
+		    $nextDisc = $sourceDisc if ! $nextDisc ;
+		    push(@remainderLines, $line);
+		}
+	    }
+	}
+    }
+    @lines = @remainderLines;
+    print "did $copied , " . scalar(@remainderLines) . " to go\n";
+    print "Next disc: $nextDisc\n";
+    if ( isCdMounted() ) {
+	`drutil eject`;
+    }
+    waitForCd();
+}
+
+sub waitForCd {
+    while ( ! isCdMounted() ) {
+	sleep(1);
+    }
+    sleep(2);
+}
+
+sub isCdMounted {
+    my $found = 0;
+    opendir(DIR, "/Volumes");
+    my $fileName;
+    while($fileName = readdir(DIR)) {
+	next if $fileName =~ /^\./;
+	next if $fileName =~ /HD/;
+	$found = 1;
+    }
+    closedir(DIR);
+    return $found;
+}
+

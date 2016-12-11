@@ -1,0 +1,111 @@
+#!/usr/bin/perl
+# a routine to take a source dir full of desired images, a destination dir 
+# full of all original images, and delete any of the originals.
+
+use strict;
+use File::Find;
+
+my $sourceDir = $ARGV[0];
+my $destDir = $ARGV[1];
+
+if ( ! $sourceDir || ! -d $sourceDir || ! $destDir || ! -d $destDir) {
+   die &usage;
+}
+
+my %wantedNames;
+my %wantedMatched;
+my @keepNames;
+my %keepMap ;
+my @discardNames;
+my %uniqueNames;
+
+find( { "wanted" => \&findWanted },($sourceDir));
+
+print "found " . scalar(keys(%wantedNames)) . " files worth keeping in $sourceDir\n";
+
+find( { "wanted" => \&isDesired  },($destDir));
+    
+if ( scalar(@keepNames) != scalar(keys(%wantedNames)) ) {
+    print "hmm, number of keep (" . scalar(@keepNames) . ") does not match\n";
+    print " number of trimmed files (" . scalar(keys(%wantedNames)) . ")\n";
+    print " in $sourceDir\n";
+  my @wantedNamesCopy = keys(%wantedNames);
+  my $tmpName;
+  my %trimNames = {};
+
+  foreach $tmpName ( @wantedNamesCopy ) {
+   $trimNames{$tmpName} = 1;
+  }
+  foreach $tmpName ( keys(%wantedMatched)) {
+    if ( $wantedMatched{$tmpName} ) {
+	print "found unmatched file : $tmpName\n";
+   }
+   $tmpName=~ s/\....$//;
+   undef $trimNames{$tmpName};
+  }
+  #print join("\n   ", keys(%trimNames));
+    #print join("\n   ",@discardNames);
+    #print join("\n   ",keys(%wantedNames));
+    print " are you sure you want to continue? ";
+    my $line = <STDIN>;
+    if ( $line !~ /y/i ) {
+	die " exiting\n";
+    }
+}
+
+print "found " . scalar(@discardNames) . " additional files not worth keeping in $destDir\n";
+
+if ( scalar(@discardNames) > 0 ) {
+    print "\nproceed with delete? ";
+    my $line = <STDIN>;
+    if ( $line =~/y/ ) {
+	my $discardFile;
+	foreach $discardFile (@discardNames) {
+	    #print " removing $discardFile\n";
+	    unlink($discardFile);
+	}
+    }
+} else {
+    print " nothing to do.  exiting\n";
+}
+sub findWanted {
+    return if -d $_;
+    return if $_ =~ /^\./;
+    return if $_ =~ /a\.jpg$/i;
+    my $source = $_;
+    $source =~ s/\....//;  #remove the 3 character extension
+    if ( $source !~ /^.\d\d\d\d\d\d\d$/) {
+      print "unknown file $source\n";
+    }
+if ( $wantedNames{$source} ) {
+  print "duplicate found: $source\n";
+}
+
+    $wantedNames{$source} = 1;
+    $wantedMatched{$source} = 1;
+}
+
+sub isDesired {
+    return if -d $_;
+    return if $_ =~ /^\./;
+    my $source = $_;
+    $source =~ s/\....//;  #remove the 3 character extension
+    my $unique = $source;
+    $unique =~ s:.*\/::; # make the unique be just the fileName
+    if ( $keepMap{$File::Find::name}) {
+      print "found a duplicate name for $source\n";
+    } 
+    $uniqueNames{$unique} = 1;
+    if ( $wantedNames{$source} ) {
+	# keep it
+	push(@keepNames,$File::Find::name);
+        $keepMap{$File::Find::name} = 1;
+  	$wantedMatched{$source} = 0;
+    } else {
+	push(@discardNames,$File::Find::name);
+    }
+}
+
+sub usage {
+    return "usage: trimFolder desiredFolder originalsFolder\n";
+}

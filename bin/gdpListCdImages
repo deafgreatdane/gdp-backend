@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+use lib "/GDP/lib";
+use DBI;
+use strict;
+
+
+######## CONFIGURATION
+
+my $pwd = "/Volumes/";
+
+opendir(DIR , "$pwd") || die "No volume root";
+
+
+my $fileName ;
+while($fileName = readdir(DIR)) {
+    next if $fileName =~ /^\./;
+    next if $fileName =~ /HD/;
+
+    my $root = $pwd . $fileName ;
+    print $root . "\n";
+    findFiles($root);
+}
+
+sub findFiles { 
+    my $sourceDir = shift; 
+    my @retval ;
+    my ($readFrom) = $sourceDir; 
+    my($source);
+    # add a trailing slash to the sourcedir, to make sure
+    if ( $sourceDir ne "" && $sourceDir !~ m:/$:) {
+	$sourceDir .= "/";
+    }
+    local(*DIR);
+    opendir(DIR,"$readFrom") || die; 
+    while( $source = readdir(DIR)) { 
+	next if $source =~ m/^_/; 
+	next if $source =~ m:^\.:;
+	next if $source =~ m:~$:;
+	next if $source =~ m:\.app$:;
+	print "$sourceDir$source\n";
+	if ( -d "$sourceDir$source" ) {
+	    findFiles("$sourceDir$source");
+	}
+    }
+    closedir(DIR);
+}
+

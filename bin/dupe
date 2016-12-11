@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+# a routine to make a duplicate of a folder using hard links
+# handy for making a backup before some other destructive operation.
+
+use strict;
+use File::Find;
+
+my $dir = $ARGV[0];
+
+if ( ! $dir || ! -d $dir) {
+   die &usage;
+}
+# strip the trailing slash from command line completion
+$dir =~ s:/$::;
+
+my $newDir = $dir . ".copy";
+if ( -d $newDir ) {
+    die "$newDir already exists.  exiting\n";
+}
+mkdir $newDir || die;
+
+find( { "wanted" => \&wanted , "no_chdir" => 1},($dir));
+    
+
+sub wanted {
+    print $_ . "\n";
+    my $source = $_;
+    my $dest = $source;
+    $dest =~ s/^${dir}/${newDir}/;
+    if ( -d $source ) {
+	mkdir($dest);
+    } else {
+	link($source,$dest);
+    }
+}
+
+sub usage {
+    return "usage: dupe folder\n";
+}

@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+use strict;
+use File::Copy;
+
+
+########## validate inputs
+my $workingDir = shift(@ARGV);
+
+if ( ! $workingDir ) {
+    die "usage; gdpFixImageNames directory\n";
+}
+
+######## do the work
+my @directoriesTodo;
+push( @directoriesTodo, $workingDir );
+my $currentDir;
+while ( $currentDir = shift(@directoriesTodo)) {
+
+    # read the current directory contents
+    print STDERR "doing $currentDir\n";
+    if  ( ! opendir(DIR,"$currentDir") ) {
+	print STDERR " could not open $currentDir\n";
+	return;
+    }
+    my $choice;
+    while( $choice = readdir(DIR)) {
+	next if $choice =~ /^\./;
+	next if $choice =~ /^_/;
+	next if $choice =~ /.html/i;
+	if ( -d "$currentDir/$choice" ) {
+	    push(@directoriesTodo,"$currentDir/$choice");
+	} else {
+	    next if $choice !~ /.(jpg|tif|cr2|crw)/i;
+	    my $extension = "\L$1\E";
+		my $newFileName = "\L$choice\E";
+	    print STDERR "  $currentDir/$choice\t$newFileName\n";
+
+            rename("$currentDir/$choice","$currentDir/$newFileName") || die("$!");
+	}
+    } 
+    closedir(DIR);
+}
+

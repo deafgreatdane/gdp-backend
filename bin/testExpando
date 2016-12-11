@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+
+use strict;
+use lib "/Users/johnsonb/lib/perl";
+
+
+use GDP::Expando;
+
+$GDP::Expando::debug = 5;
+
+my ($source1,$source2);
+
+#$source1 = "123(567(901),45())";
+$source1 = "123(567(901))";
+############0123456789012
+
+my(@sourceParse) = GDP::Expando::parseFunction($source1);
+
+assertEqual($sourceParse[0],"123","funcName1");
+assertEqual($sourceParse[1],"567(901)","args");
+
+$source2 = "1234(678)";
+@sourceParse = GDP::Expando::parseFunction($source2);
+assertEqual($sourceParse[0],"1234","funcName1");
+assertEqual($sourceParse[1],"678","args");
+print STDOUT "----\n";
+
+$source2 = "a,b";
+@sourceParse = GDP::Expando::parseList($source2);
+assertEqual($sourceParse[0],"a","item1");
+assertEqual($sourceParse[1],"b","item2");
+print STDOUT "----\n";
+
+
+print STDERR "all done\n";
+
+sub assertEqual {
+    my ($a1, $a2,$reason) = @_;
+    if ( $a1 ne $a2 ) {
+       print "FAIL: $reason '$a1' ne '$a2'\n";
+   } else {
+       print "SUCCESS: $reason\n";
+   }
+}

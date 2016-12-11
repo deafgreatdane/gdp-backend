@@ -1,0 +1,105 @@
+#!/usr/bin/perl
+use strict;
+use File::Copy;
+
+my $homeDir = "/Users/johnsonb";
+my $desktop = "$homeDir/Desktop";
+#my $volumeRoot = "/Volumes/marimba HD";
+my $volumeRoot = "";
+
+######## CONFIGURATION
+
+# the root of where the local webapp pulls its images
+my $destRoot = "$volumeRoot/Web/proofImages";
+# the root of the originals file
+my $srcRoot = "/GDP/jalbum";
+
+########## validate inputs
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    die "usage; gdpJalbumImport eventCode\n";
+}
+
+my $destDir = "$destRoot/$eventCode";
+if ( ! -d $destDir ) {
+    die "destination directory does not exist: $destDir\n";
+}
+my $srcDir = "$srcRoot/$eventCode";
+if ( ! -d $srcDir ) {
+    die "originals directory does not exist: $srcDir\n";
+}
+
+######## do the work
+
+proofDir("",0);
+
+sub proofDir {
+    my ($currentDir) = shift(@_);
+    my ( $depth ) = shift(@_);
+    # make sure this exists in the destination hierarchy
+    mkdir("$destDir$currentDir");
+
+    # read the current directory contents
+    print STDERR "doing $currentDir\n";
+    if  ( ! opendir(DIR,"$srcDir$currentDir") ) {
+	print STDERR " could not open $srcDir$currentDir\n";
+	return;
+    }
+    my @choiceList;
+    my $choice;
+    my $dirType = "";
+    while( $choice = readdir(DIR)) {
+	next if $choice =~ /^\./;
+	next if $choice =~ /^_/;
+	next if $choice =~ /.html/i;
+	next if $choice eq "res";
+	# skip over the jalbum generated directories, so 
+	# we'll think this is the node directory
+	if ( $choice eq "thumbs" || $choice eq "slides" ) {
+	    $dirType = "node";
+	}
+	push(@choiceList,$choice);
+    }
+    closedir(DIR);
+
+    if ( $dirType ne "node" ) {
+	# crawl down into subdirectories
+	foreach $choice (@choiceList) {
+	    if ( -d "$srcDir$currentDir/$choice" ) {
+		proofDir("$currentDir/$choice",$depth+1);
+	    }
+	}
+    } else {
+	if  ( ! opendir(DIR,"$srcDir$currentDir/slides") ) {
+	    print STDERR " could not open $srcDir$currentDir/slides\n";
+	    return;
+	}
+	while( $choice = readdir(DIR)) {
+	    next if $choice !~ /.jpg/i;
+	    copyFile("$srcDir$currentDir/slides/$choice","$destDir$currentDir/$choice");
+
+	    my $masterThumb = $choice;
+	    $masterThumb =~ s:.jpg:a.jpg:i;
+	    copyFile("$srcDir$currentDir/thumbs/$choice","$destDir$currentDir/$masterThumb");
+
+
+	}
+	closedir(DIR);
+    } 
+}
+
+sub copyFile {
+    my ($sourcePath,$destPath) = @_;
+    if ( ! -e $sourcePath ) {
+	print STDERR " no view image found at $sourcePath\n";
+	return;
+    } elsif ( -e $destPath) {
+	print STDERR " exists $destPath\n";
+	return;
+    } else {
+	print STDERR "copy $sourcePath -> $destPath\n";
+	copy($sourcePath,$destPath) || die;
+    }
+
+}
+

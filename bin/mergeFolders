@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+
+use File::Find;
+use File::Basename;
+use File::Path;
+use File::Copy;
+
+use strict;
+
+my @allList;
+my @roots = listThisDirectory();
+if ( scalar(@roots) < 2 ) {
+    print "this folder only contains : " . scalar(@roots) . " items\n";
+    die &usage;
+}
+my $destFolder = shift(@roots);
+
+find( { wanted => \&mergeFile, 
+	no_chdir => 1},
+      @roots);
+
+my $emptyFolder;
+foreach $emptyFolder ( @roots ) {
+    #print " want to remove $emptyFolder now\n";
+    rmtree($emptyFolder);
+}
+
+sub listThisDirectory {
+    my $option ;
+    my @retval;
+    foreach $option (<*>) {
+	next if ! -d $option;
+	push(@retval, $option);
+    }
+    return @retval;
+}
+
+sub mergeFile {
+    my $file = $File::Find::name;
+    if ( -d $file ) {
+	# skip directories, since the files will
+	#create any needed directories
+	return;
+    }
+    my $firstFolder = firstFolder($file);
+    my $newName = $file;
+    $newName =~ s:^$firstFolder/:$destFolder/:;
+    my $destFolder = dirname($newName);
+    if ( ! -d $destFolder ) {
+	print "want to make $destFolder for $newName in " . `pwd` . "\n";
+	if ( ! mkpath($destFolder) ) {
+	    die " but it didn't work.  quiting";
+	}
+    }
+    print "move checking " . $File::Find::name . "\n";
+    print " -- to $newName\n";
+    if ( ! move($file,$newName) ) {
+	die "cound not move $file to $newName . Quiting\n";
+    }
+}
+
+sub usage {
+    die "mergeFolders must be run on a folder with at least 2 subfolders\n";
+}
+
+sub firstFolder {
+    my $path = shift(@_);
+    my (@parts) = split(/\//, $path);
+    return $parts[0];
+}

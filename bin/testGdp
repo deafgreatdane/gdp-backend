@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+
+use strict;
+use lib "/Users/johnsonb/lib/perl";
+
+
+use GDP::Paths;
+
+$GDP::Paths::debug = 5;
+
+assertEqual( GDP::Paths::getDirectoryOf("/a/b/d"),"/a/b/","getDirectory");
+assertEqual( GDP::Paths::getDirectoryOf("/a/b/d/"),"/a/b/d/","getDirectory");
+print STDOUT "----\n";
+
+assertEqual( GDP::Paths::getParentDirectoryOf("/a/b/d"),"/a/b/","getParentDirectory");
+assertEqual( GDP::Paths::getParentDirectoryOf("/a/b/d/"),"/a/b/","getParentDirectory");
+print STDOUT "----\n";
+
+assertEqual( GDP::Paths::getAbsolute("/a/b/d", "c2"),"/a/b/c2","getAbsolute1");
+print STDOUT "----\n";
+
+assertEqual( GDP::Paths::getAbsolute("/a/b/d/", "c2"),"/a/b/d/c2","getAbsolute2");
+print STDOUT "----\n";
+
+assertEqual( GDP::Paths::getAbsolute("/a/b/d", "../c2"),"/a/c2","getAbsolute3");
+print STDOUT "----\n";
+assertEqual( GDP::Paths::getAbsolute("/a/b/d", "../../c2"),"/c2","getAbsolute4");
+print STDOUT "----\n";
+
+assertEqual( GDP::Paths::getRelative("/a/b", "c2"),"c2","getRelative1");
+assertEqual( GDP::Paths::getRelative("/a/b", "c/d"),"c/d","getRelative2");
+assertEqual( GDP::Paths::getRelative("/a/b/d", "/a/c/e"),"../c/e","getRelative3");
+assertEqual( GDP::Paths::getRelative("/a/b/d/", "/a/c/e"),"../../c/e","getRelative4");
+assertEqual( GDP::Paths::getRelative("/a/b/d", "/b/c/e"),"../../b/c/e","getRelative5");
+
+print STDOUT "----\n";
+
+print STDERR "all done\n";
+
+sub assertEqual {
+    my ($a1, $a2,$reason) = @_;
+    if ( $a1 ne $a2 ) {
+       print "FAIL: $reason '$a1' ne '$a2'\n";
+   } else {
+       print "SUCCESS: $reason\n";
+   }
+}

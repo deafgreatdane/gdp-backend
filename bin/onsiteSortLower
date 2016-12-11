@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    print STDERR "usage: onsiteSort eventCode\n";
+    exit(2);
+}
+
+my $sourceDir = "/GDP/originals/$eventCode";
+my $tempDir = "/tmp/${eventCode}_tmp";
+
+my $jpgDir = "/GDP/sorted/$eventCode";
+
+if ( ! -d $tempDir ) {
+    mkdir $tempDir || die;
+}
+if ( ! -d $jpgDir ) {
+    mkdir $jpgDir || die;
+}
+
+my $baseDir;
+
+while (1) {
+    print "put images into $sourceDir.\nPress any return to continue...";
+    my $line = <STDIN>;
+    print "putting images into $tempDir...\n";
+    `find $sourceDir -name \\*.jpg -exec mv {} $tempDir \\;`;
+    print "    ... done\n";
+    print "fixing image names in $tempDir...\n";
+    `gdpFixImageNames $tempDir`;
+    print "    ... done\n";
+    print "categorize the image names\n";
+    my $command = "fancySort $tempDir $jpgDir";
+    print "run this command in another window\n\n$command\n\nPress <return when done\n";
+    $line = <STDIN>;
+    print "run jalbom.  press <return> when done\n";
+    $line = <STDIN>;
+    print "running gdpJalbumImport...\n";
+    `gdpJalbumImport $eventCode`;
+    print "   ... done";
+    print "running loadFromDisk...\n";
+    `curl http://cymbal.local.:8180/orders_/admin/load_paths.do?location=/$eventCode/`;
+    print "   ... done";
+    print "******** Done\n\n";
+}
+

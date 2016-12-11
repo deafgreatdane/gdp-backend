@@ -1,0 +1,313 @@
+#!/usr/bin/perl
+use DBI;
+use File::Copy;
+
+my $includeDir = "/Users/johnsonb/lib/gdp/cdIncludes";
+my $dbh = getDatabaseHandle();
+my $baseDir = "/Users/johnsonb/Desktop/cdPages";
+my $sourceDir = "/Volumes/iBook HD/GDP/small/03portraits";
+#my $dsn = 'DBI:mysql:gdp:gdp-server.local.';
+my $thumbNailsPerPage = 100;
+my $zoomOn = 1;
+my $maxProofs = 500;
+
+my $globalDepth = 1;
+my $startAt = shift(@ARGV);
+if ( ! $startAt ) {
+  die "no event specified";
+ }
+ my %labels;
+ my %subdirs;
+ my @todo;
+ my $location;
+ my $sth = $dbh->prepare(qq{select location,label from path where location like '$startAt%' order by location});
+$sth->execute();
+my (@row,$imageNumber,$newName,$productShort,$extra,$shortImageNumber);
+while( @row = $sth->fetchrow_array()) {
+	my( $location,$label) = @row;
+	if ( ! $globalPrefix ) {
+		$globalPrefix = $location;
+		$globalPrefix =~ s:/$::;
+	}
+    $location =~ s:$globalPrefix::;
+    $labels{$location} = $label;
+    $location =~ m:^(.*/)[^/]*/$:;
+    my $parentLocation = $1;
+    my $arrayRef = $subdirs{$parentLocation};
+    if ( ! $arrayRef ) {
+    	$arrayRef = [];
+    	$subdirs{$parentLocation} = $arrayRef;
+    
+    }
+    push(@$arrayRef,$location);
+    #print "there are " . scalar(@$arrayRef) . " items for $parentLocation$location\n";
+    push(@todo,$location);
+}
+
+$globalDepth = getDepth( $todo[0] ) ;
+print "depth of " . $todo[0] . " is " . getDepth($todo[0]) . ", stored at $globalDepth\n";
+$proofsDone = 0;
+foreach  $location ( @todo ) {
+    proofDir($location);
+    $proofsDone ++;
+    if ( $proofsDone > $maxProofs ) {
+	print "limit reached: skipped " . (scalar(@todo)  - $proofsDone) . " dirs\n";
+	last;
+    }
+}
+#################################################
+
+sub getImages {
+	my ($location) = shift(@_);
+	my $sth = $dbh->prepare(qq{select image_number from image where location = '$globalPrefix$location' });
+	$sth->execute();
+	my (@retval);
+	while( @row = $sth->fetchrow_array()) {
+		my( $imageNumber) = @row;
+		push(@retval,$imageNumber);
+	}
+	return @retval;
+
+}
+sub proofDir {
+    my ($currentDir) = shift(@_);
+	if ( ! -d "$baseDir$currentDir") {
+    		mkdir("$baseDir$currentDir") || die "could not create $baseDir$currentDir : $!";
+	}
+		my $globalDepth = 2;
+    
+    my ( @images)  = getImages($currentDir);
+    if ( scalar(@images) <= 0 ) {
+    	genListPage($currentDir);
+    } else {
+        genImagePage($currentDir,@images);
+    }
+}
+sub genListPage {
+    my ($currentDir) = shift(@_);
+	print STDERR "Doing index in $currentDir\n";
+	open(PROOF,"> $baseDir$currentDir/index.html") || die "$baseDir$currentDir/index.html";
+	my %hashSet;
+	
+	$currentDir =~ m:/([^/]*)$:;
+	
+	my $proofDir = $1;
+	$hashSet{'proofDir'} = $proofDir;
+
+	processInclude(*PROOF,"header.txt",\%hashSet);
+	printBreadCrumb(*PROOF,$currentDir,$currentDir);
+     processInclude(*PROOF,"index_preamble.txt",\%hashSet);
+	print PROOF "<ul>";
+	my $choice;
+	foreach $choice ( @{$subdirs{"$currentDir"}}) {
+	    my $label = $labels{"$choice"};
+	    $choice =~ s/$currentDir//;
+	    print PROOF "<li><a href=\"${choice}index.html\">$label</a>\n";
+	}
+	print PROOF "</ul>\n";
+	processInclude(*PROOF,"footer.txt",\%hashSet);
+	close PROOF;
+
+}
+sub genImagePage {
+    my ($currentDir) = shift(@_);
+    my @images = @_;
+ 	my $page = 0;
+	my $imageDone = 0;
+	my %hashSet;
+	my $i;
+	my ($row,$col,$choice,$pageCount);
+	my $fileCount = @images;
+	$pageCount = $fileCount / $thumbNailsPerPage  ;
+	if ( $pageCount != int($fileCount/$thumbNailsPerPage) ) {
+	    $pageCount = int ( $pageCount + 1);
+	}
+
+		
+	foreach $choice (@images) {
+	    if ( $imageDone % $thumbNailsPerPage == 0 ) {
+			if ( $page > 0 ) {
+				print PROOF "</table>\n";
+				processInclude(*PROOF,"proof_footer.txt",\%hashSet);
+				processInclude(*PROOF,"footer.txt",\%hashSet);
+				close PROOF;
+			}
+			print STDERR "Doing proof $page of $pageCount $currentDir\n";
+			if ( $page == 0 ) {
+				open(PROOF,"> $baseDir${currentDir}index.html");
+			} else { 
+				open(PROOF,"> $baseDir${currentDir}index_$page.html");
+			}
+			$row = 0;
+			$col = 0;
+	
+			$currentDir =~ m:/([^/]*)/$:;
+			my $proofDir = $1;
+	
+	
+			$hashSet{'proofDir'} = $proofDir;
+			$hashSet{'updir'} = getDotDot($currentDir);
+	
+			processInclude(*PROOF,"header.txt",\%hashSet);
+			printBreadCrumb(*PROOF,$currentDir,$currentDir);
+			processInclude(*PROOF,"proof_preamble.txt",\%hashSet);
+			if ( $pageCount > 1 ) {
+				print PROOF "Screen ";
+				for ( $i = 0 ; $i < $pageCount ; $i++ ) {
+					if ( $i == $page ) {
+					print PROOF " - <b>[" . ($i + 1) . "]</b>";
+					} elsif (- $i == 0 ) {
+					print PROOF " - <a href=\"index.html\">[" . ($i + 1) . "]</a>\n";
+					} else {
+					print PROOF " - <a href=\"index_$i.html\">[" . ($i + 1) . "]</a>\n";
+					}
+				}
+			}
+			print PROOF "</p><table border=\"1\" cellpadding=\"5\" cellspacing=\"0\" bordercolor=\"#000000\" align=\"center\">\n";
+			$page++;
+	    } 
+	    if ( $col % 2 == 0 ) {
+		if ( $row > 0 ) {
+		    print PROOF "</tr>";
+		}
+		print PROOF "<tr>";
+		$row++;
+		
+	    }
+	    $col++;
+
+	    #next if $choice !~ /-01.jpg/i;
+	    
+	    $hashSet{'position'} = $imageDone;
+	    $imageDone ++;
+	    drawPictureHtml(*PROOF,$choice,\%hashSet);
+	    if ( $zoomOn ) {
+		genZoomPage($currentDir,$choice,\%hashSet,$imageDone,scalar(@images));
+	    }
+	}
+	print PROOF "</table>\n";
+	processInclude(*PROOF,"proof_footer.txt",\%hashSet);
+	processInclude(*PROOF,"footer.txt",\%hashSet);
+	close PROOF;
+}
+
+sub getDotDot {
+	my $dir = shift;
+	return getDots( getDepth($dir)  ); 
+}
+sub getDots {
+	my ( $depth)  = @_;
+	my $retval = "";
+	for ( $i = 0 ; $i <  $depth ; $i++) {
+		$retval .= "../";
+	}
+	return $retval;
+
+}
+sub getDepth {
+	my $dir = shift;
+	my @slashes = ( $dir =~ m:/:g);
+	return scalar(@slashes) -1 ;
+}
+sub getParent {
+	my $dir = shift;
+	$dir =~ s:[^/]*/$::;
+	return $dir;
+}
+
+sub printBreadCrumb {
+	my ( $outHandle, $dir ,$currentDir,$subFile)  = @_;
+	if ( getDepth( $dir) == 0 ) {
+		print $outHandle '<a href="' . getDots(getDepth($currentDir)) . 'index.html">Home</a>';
+	}
+	if ( getDepth( getParent( $dir)) >= 0 ) {
+		printBreadCrumb($outHandle,getParent($dir),$currentDir);
+	}
+	if ( $dir eq $currentDir ) {
+		if ( ! $subFile ) {
+			print $outHandle "&gt;" . $labels{$dir} . "\n<hr>\n";
+		} else {
+			print $outHandle "&gt;\n";
+			print $outHandle '<a href="' . getDots(getDepth($currentDir) - getDepth($dir)) . 'index.html">' . $labels{"$dir"} . '</a>';
+			print $outHandle "&gt;\n";
+			print $outHandle $subFile;
+			print $outHandle "\n<hr>\n";
+
+		}
+	} elsif ( getDepth($dir) > 0 ) {
+		print $outHandle "&gt;\n";
+		print $outHandle '<a href="' . getDots(getDepth($currentDir) - getDepth($dir)) . 'index.html">' . $labels{"$dir"} . '</a>';
+		
+	}
+}
+sub genZoomPage {
+    my ( $currentDir,$imageNumber, $hashSet, $position, $totalImages) = @_;
+
+    open( ZOOM, ">$baseDir${currentDir}z" . $hashSet->{'position'} . ".html");
+    processInclude(*ZOOM,"header.txt",$hashSet);
+# print the breadcrumb
+printBreadCrumb(*ZOOM , "$currentDir","$currentDir",$imageNumber);
+
+# the next/prev arrows
+print ZOOM "<table align='center'><tr><td width='100'>";
+if ( $position > 1 ) {
+print ZOOM "<a href='z" . ( $position -2) . ".html'><img src='" . $hashSet->{'updir'} . "graphics/b_prev.gif' alt='previous' border='0'></a>";
+} 
+print ZOOM '</td><td width="200" align="center">';
+    print ZOOM "$position of $totalImages";
+	print ZOOM '</td><td width="100">';
+	if ( $position < $totalImages ) {
+		print ZOOM "<a href='z" . ( $position ) . ".html'><img src='" . $hashSet->{'updir'} . "graphics/b_next.gif' alt='next' border='0'></a>";
+	}
+	print ZOOM "</td></tr></table>";
+
+# the picture
+print ZOOM "<p align=\"center\">\n";
+ print ZOOM "<img src=\"" . getDots(getDepth($currentDir)) . "_images/$imageNumber.jpg\" height=\"600\" border=\"2\"/>\n";
+print ZOOM "</p>";
+# the end
+    processInclude(*ZOOM,"footer.txt",$hashSet);
+
+
+    close ZOOM;
+}
+sub drawPictureHtml {
+    my ( $outHandle,$picture,$hashSet) = @_;
+    $picture =~ m/(\d\d\d\d)$/;
+    my $pictureId = $1;
+    $hashSet->{'pictureFile'} = $1;
+    #my %hashSet;
+    my $imageNum = $pictureId;
+   $imageNum += 0;
+	my $sourceFile = sprintf("$sourceDir/654E%04d.jpg",$imageNum);
+	my $destFile = "$baseDir/_images/$picture.jpg";
+    print "copy $sourceFile to $destFile\n";
+    if ( ! -e $destFile ) {
+    	copy("$sourceFile","$destFile");
+    } else {
+	print " ...skipped";
+   }
+print "\n";
+    $hashSet->{'imageNumber'} = $picture;
+    $hashSet->{'sourceName'} = "654E$pictureId";
+    processInclude($outHandle,"proof.txt",$hashSet);
+}
+
+
+sub processInclude {
+    my ($outHandle,$incName,$hashSet) = @_;
+    open(INC,"<$includeDir/$incName") || die ;
+    while ( $_ = <INC> ) {
+	s/#([^<>#"]+)#/$hashSet->{$1}/ge;
+	print $outHandle $_;
+    }
+}
+
+sub getDatabaseHandle {
+	#my $dsn = 'DBI:mysql:gdp:127.0.0.1';
+	my $dsn = 'DBI:mysql:gdp:gdp-server.local.';
+	my $dbuser = 'gdp';
+	my $dbpassword = 'gdp';
+	my $dbh = DBI->connect($dsn,$dbuser,$dbpassword);
+	return $dbh;
+}

@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+# extract a list of directories that can turn into appleworks
+use lib "/GDP/lib";
+use DBI;
+use strict;
+use GDP::OrderDb;
+
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    print STDERR "usage: ppDirList eventCode\n";
+    exit(2);
+}
+
+my $dbh = GDP::OrderDb::getDatabaseHandle();
+my $eventInfo = GDP::OrderDb::getEventInfo($dbh,$eventCode);
+
+my $eventTitle = $eventInfo->{'description'};
+my $priceCategory = $eventInfo->{'priceModel'};
+
+ my @todo;
+ my $location;
+ my $sth = $dbh->prepare(qq{select location,label,image_count from path where location like '/$eventCode/%' and image_count > 0 order by location});
+$sth->execute();
+my (@row,$imageNumber,$newName,$imageCount,$productShort,$extra,$shortImageNumber);
+while( @row = $sth->fetchrow_array()) {
+    my( $location,$label,$imageCount) = @row;
+    $location =~ s:^/::;
+    $location =~ s:/$::;
+    $location =~ s:/:_:g;
+    if ( $eventInfo->{'directoryStyle'} eq "dogPerson" ) {
+	# truncate the name after the first uppercase (since, that's the owner's name)
+	$label =~ s:[A-Z].*::;
+    }
+    print "$location\t$priceCategory\t$imageCount\t$label\t$eventTitle\n";
+}
+

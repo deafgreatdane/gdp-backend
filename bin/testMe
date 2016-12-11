@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+
+use strict;
+
+use GDP::Config;
+
+print "hello world\n";
+
+print GDP::Config->Get('blah')  . "\n";
+

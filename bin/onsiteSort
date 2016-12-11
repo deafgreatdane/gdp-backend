@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $eventCode = shift(@ARGV);
+if ( ! $eventCode ) {
+    print STDERR "usage: onsiteSort eventCode\n";
+    exit(2);
+}
+
+my $sourceDir = "/GDP/originals/$eventCode";
+my $tempDir = "/tmp/${eventCode}_tmp";
+
+my $jpgDir = "/GDP/sorted/$eventCode";
+
+if ( ! -d $tempDir ) {
+    mkdir $tempDir || die;
+}
+if ( ! -d $jpgDir ) {
+    mkdir $jpgDir || die;
+}
+
+my $baseDir;
+
+
+print "put images into $sourceDir.\nPress any return to continue...";
+my $line = <STDIN>;
+print "putting images into $tempDir...\n";
+`find $sourceDir -name \\*.JPG -exec mv {} $tempDir \\;`;
+print "    ... done\n";
+print "fixing image names in $tempDir...\n";
+`gdpFixImageNames $tempDir`;
+print "    ... done\n";
+print "categorize the image names. Do you want \n";
+print "FIRST: put the 2 columns of 'dogHandler,imageNumber' on the clipboard\n";
+    
+
+my $command = "fancySort $tempDir $jpgDir";
+print " 1. interactive via\n\t$command\n";
+
+my $command2 = "runningOrderSort $tempDir $jpgDir $eventCode";
+print " 2  batch via \n\t$command2\n";
+$line = <STDIN>;
+chomp($line);
+if ( $line eq  1 ) {
+    exec $command;
+} elsif ($line eq 2) {
+    exec $command2;
+}
+

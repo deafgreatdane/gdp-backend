@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use File::Copy;
+# this file generates a "list.txt" file in */slides
+# for use by Photo Preview
+# the file contains just the filename, no extention
+
+########## validate inputs
+my $workingDir = shift(@ARGV);
+
+if ( ! $workingDir ) {
+    die "usage; gdpOnlineList directory\n";
+}
+
+######## do the work
+my ($parentDir,@directoriesTodo,@toSearch,$searchDir);
+push(@toSearch,$workingDir) ;
+
+while ( $searchDir = shift(@toSearch)) {
+    if  ( ! opendir(DIR,"$searchDir") ) {
+	die " could not open $searchDir\n";
+    }
+    while ( $parentDir = readdir(DIR)) {
+	next if $parentDir =~ /^\./;
+	next if ! -d "$searchDir/$parentDir";
+	if ( -d "$searchDir/$parentDir/slides") {
+	    push (@directoriesTodo,"$searchDir/$parentDir");
+	} elsif ( -d "$searchDir/$parentDir") {
+	    push(@toSearch,"$searchDir/$parentDir");
+	} else {
+	    print "skipping $searchDir/$parentDir\n";
+	}
+    }
+    closedir(DIR);
+}
+
+
+my $currentDir;
+while ( $currentDir = shift(@directoriesTodo)) {
+
+    # read the current directory contents
+    print STDERR "doing $currentDir\n";
+    if  ( ! opendir(DIR,"$currentDir/slides") ) {
+	print STDERR " could not open $currentDir/slides\n";
+	next;
+    }
+    open( LIST, ">$currentDir/slides/list.txt");
+    my $choice;
+    while( $choice = readdir(DIR)) {
+	#print STDERR "$choice\n";
+	next if $choice =~ /^\./;
+	next if $choice =~ /^_/;
+	next if $choice !~ /.jpg$/i;
+
+	
+	$choice =~ s/.jpg$//i;
+	print LIST "$choice\n";
+    }
+    close(LIST);
+    closedir(DIR);
+}
+
+
