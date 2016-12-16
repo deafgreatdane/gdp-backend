@@ -1,12 +1,9 @@
 #!/usr/bin/perl
 # the script to run per shooter at the end of the day
 
-
-
 use strict;
 use File::Path qw(make_path);
 my $inDir = shift(@ARGV);
-
 
 if ( ! -d $inDir) {
     print STDERR "usage: splitShoot dirName\n";
@@ -14,12 +11,7 @@ if ( ! -d $inDir) {
 }
 
 # chop the trailing / added by bash autocomplete
-$inDir =~ m:/$:;
-
-if ( $inDir =~ m:/:) {
-    # an absolute path was used, validate naming conventions
-    # todo
-}
+$inDir =~ s:/$::;
 
 print "All of the following should be done:\n" .
     " * put images into $inDir.\n" . 
@@ -123,9 +115,6 @@ sub padDogNames {
     unlink($tempFile);
 }
 
-sub promptForImages {
-    my $dogImageFile = shift;
-}
 sub readImagesFromDir {
     my $inDir = shift;
     opendir(DIR, $inDir);
@@ -142,25 +131,6 @@ sub readImagesFromDir {
 	push(@retval,$imageRef);
     }
     closedir(DIR);
-    return @retval;
-}
-
-sub readDogNames {
-    my $dogFile = shift;
-    open(IN, "<", $dogFile) || die(" could not open $dogFile");
-    my @retval;
-    my $line;
-    while($line = <IN>) {
-	chop($line);
-	next if $line =~ /^#/;
-	next if ! $line;
-	my ($dogName, $extra) = split(/\s/,$line,2);
-	my $dog = {};
-	$dog->{'name'} = $dogName;
-	$dog->{'extra'} = $extra;
-
-	push(@retval,$dog);
-    }
     return @retval;
 }
 
