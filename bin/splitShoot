@@ -1,0 +1,320 @@
+#!/usr/bin/perl
+# the script to run per shooter at the end of the day
+
+
+
+use strict;
+use File::Path qw(make_path);
+my $inDir = shift(@ARGV);
+
+
+if ( ! -d $inDir) {
+    print STDERR "usage: splitShoot dirName\n";
+    exit(2);
+}
+
+# chop the trailing / added by bash autocomplete
+$inDir =~ m:/$:;
+
+if ( $inDir =~ m:/:) {
+    # an absolute path was used, validate naming conventions
+    # todo
+}
+
+print "All of the following should be done:\n" .
+    " * put images into $inDir.\n" . 
+    " * named by PM to xYYMMDDHH_nnnn.jpg convention\n".
+    " * put the 2 columns of 'dogHandler,imageNumber' on the clipboard\n\n";
+getLine("press any key to continue...");
+
+my @allImages = readImagesFromDir($inDir);
+print " found " . scalar(@allImages) . " images\n";
+
+####### now do the work
+my $dogFile = "$inDir/imageNumbers.txt";
+
+if ( ! -e $dogFile ) {
+    createDogNames($dogFile);
+}
+padDogNames($dogFile);
+
+print "add image numbers in the new file opened in TextEdit:\n\t$dogFile\n";
+`open -e $dogFile`;
+getLine("press any key to continue...");
+
+my $dogImages  = readDogImages($dogFile);
+print " found " . scalar(keys(%{$dogImages})) . " dogs with images\n";
+if ( ! validDogImages($dogImages,\@allImages)) {
+    exit(3);
+}
+
+applyDogsToImages($dogImages,\@allImages);
+fillImages(\@allImages);
+applyImageDestinations(\@allImages,$inDir);
+
+print "\nDone! proceed with editing!\n";
+
+
+############### IO
+sub maxDogNameLength {
+    my $dogFile = shift;
+    open(IN, "<", $dogFile);
+    my $retval = 0;
+    my $line;
+    while($line = <IN> ) {
+	chop($line);
+	next if ! $line;
+	next if $line =~ /^#/;
+	$line =~ s/\s*$//;
+	if ( length($line) > $retval ) {
+	    $retval = length($line);
+	}
+    } 
+    close(IN);
+    return $retval;
+
+}
+sub createDogNames {
+    my $dogFile = shift;
+    open(START,">", "$dogFile");
+    print START "################### running list ############\n";
+    print START "#### dog names below\n";
+    open(PB, "pbpaste -Prefer txt |");
+    while (<PB>) {
+	$_ =~ s/[\r\n]//gm;
+	my ($dogName, $extra) = split(/[\s,]+/,$_,2);
+	if ( ! $extra ) {
+	    next;
+	}
+	print START "$dogName\t$extra\n";
+    }
+    close(PB);
+    close(START);
+
+    `open -e $dogFile`;
+}
+sub padDogNames {
+    my $dogFile = shift;
+    my $maxLength = maxDogNameLength($dogFile);
+
+    open(IN, "<", $dogFile);
+    my $tempFile = $dogFile . ".$$";
+    open(OUT, ">", $tempFile);
+    my $retval = 0;
+    my $line;
+    while($line = <IN> ) {
+	chop($line);
+	if ( ! $line ) {
+	    print OUT "\n";
+	} elsif ( $line =~ /^#/ ) {
+	    print OUT $line . "\n";
+	} elsif ( $line =~ /\d\d\d\d$/ ) {
+	    # this deals with the rerun of the script
+	    print OUT $line . "\n";	    
+	} else {
+	    $line =~ s/\s*$//;
+	    print OUT $line . ( " " x (1+ $maxLength - length($line))) .  "\n";
+	}
+    } 
+    close(IN);
+    close(OUT);
+    unlink($dogFile);
+    link($tempFile ,$dogFile);
+    unlink($tempFile);
+}
+
+sub promptForImages {
+    my $dogImageFile = shift;
+}
+sub readImagesFromDir {
+    my $inDir = shift;
+    opendir(DIR, $inDir);
+    my $tmpDir;
+    my @retval;
+    while ( $tmpDir = readdir(DIR)) {
+	next if $tmpDir =~ m:^\.: ;
+	next unless $tmpDir =~ m:jpg$:i;
+	my $imageRef = {};
+	#$tmpDir = "\L$tmpDir\E";
+	$imageRef->{'file'} = $tmpDir;
+	$tmpDir =~ m:(\d\d\d\d).jpg:i;
+	$imageRef->{'number'} = $1;
+	push(@retval,$imageRef);
+    }
+    closedir(DIR);
+    return @retval;
+}
+
+sub readDogNames {
+    my $dogFile = shift;
+    open(IN, "<", $dogFile) || die(" could not open $dogFile");
+    my @retval;
+    my $line;
+    while($line = <IN>) {
+	chop($line);
+	next if $line =~ /^#/;
+	next if ! $line;
+	my ($dogName, $extra) = split(/\s/,$line,2);
+	my $dog = {};
+	$dog->{'name'} = $dogName;
+	$dog->{'extra'} = $extra;
+
+	push(@retval,$dog);
+    }
+    return @retval;
+}
+
+# return a reference to a map of dogName -> arrayRef of 4digit images
+sub readDogImages {
+    my $dogFile = shift;
+    open(IN, "<", $dogFile) || die(" could not open $dogFile");
+    my $retval = {};
+    my $line;
+    while($line = <IN>) {
+	$line =~ s/[\r\n]//gm;
+	next if $line =~ /^#/;
+	next if ! $line;
+	
+	my ($dogName, $extra) = split(/[\s,]+/,$line,2);
+	next if ! $extra;
+
+	my @images;
+	my $imageNumber;
+	foreach $imageNumber ( split(/s+/,$extra) ) {
+	    $imageNumber = sprintf("%04d", $imageNumber);
+	    push(@images,$imageNumber);
+	}
+
+	if ( $retval->{$dogName}) {
+	    # already found some, so add more
+	    push(@{$retval->{$dogName}},@images);
+	} else {
+	    $retval->{$dogName} = \@images;
+	}
+    }
+    return $retval;
+
+}
+sub makeMapOfImages {
+    my $images = shift;
+    my $imageMap = {};
+    my $imageRef;
+    foreach $imageRef (@{$images}) {
+	$imageMap->{$imageRef->{'number'}} = $imageRef;
+    }
+    return $imageMap;
+}
+sub validDogImages {
+    my $dogImages = shift;
+    my $images = shift;
+
+    my $imageMap = makeMapOfImages($images);
+    my $dogName;
+    my $retval = 1;
+    foreach $dogName ( keys(%{$dogImages})) {
+	my $subImages = $dogImages->{$dogName};
+	#print "disecting $dogName " . scalar(@{$subImages}) . "\n";
+	my $imageNumber;
+	foreach $imageNumber ( @{$subImages}) {
+	    if ( ! $imageMap->{$imageNumber}) {
+		print "ERROR $dogName says $imageNumber , but that's not in $inDir\n";
+		$retval = 0;
+	    }
+	}
+    }
+    return $retval;
+
+}
+sub applyDogsToImages {
+    my $dogImages = shift;
+    my $images = shift;
+    my $imageMap = makeMapOfImages($images);
+    my $dogName;
+    foreach $dogName ( keys(%{$dogImages})) {
+	my $subImages = $dogImages->{$dogName};
+	my $imageNumber;
+	foreach $imageNumber ( @{$subImages}) {
+	    $imageMap->{$imageNumber}->{'destination'} = $dogName;
+	}
+    }
+}
+sub fillImages {
+    my $images = shift;
+    my $imageMap = makeMapOfImages($images);
+    my @boundaries = sort {$a <=> $b} getDefinedImageNumbers($images);
+    if ( scalar(@boundaries) == 0 ) {
+	print " no existing boundaries defined\n";
+	return 1;
+    } 
+    my @allImageNumbers = sort {$a <=> $b} getUnspecifiedImageNumbers($images);
+    my $number;
+    my $nextBoundary = 0;
+    my $nextDestination;
+    my $fillCount = 0;
+outerloop:
+    foreach $number (@allImageNumbers) {
+	while ( $number > $nextBoundary ) {
+	    $nextBoundary = shift(@boundaries);
+	    #print "grabbing $nextBoundary for $number\n";
+	    if ( ! $nextBoundary ) {
+		last outerloop;
+	    }
+	    $nextDestination = $imageMap->{$nextBoundary}->{'destination'};
+	}
+	my $f = $imageMap->{$number};
+	# give this to the next boundary
+	#print "applying $number to $nextDestination\n";
+	$f->{'destination'} = $nextDestination;
+	$fillCount++;
+    }
+    print "filled in $fillCount items\n";
+
+}
+
+sub getDefinedImageNumbers {
+    my $images = shift;
+    my @retval;
+    my $f ;
+    foreach $f ( @{$images}) {
+	if ( $f->{'destination'} ) {
+	    push(@retval,$f->{'number'});
+	}
+    }
+    return @retval;
+}
+sub getUnspecifiedImageNumbers {
+    my $images = shift;
+    my @retval;
+    my $f ;
+    foreach $f ( @{$images}) {
+	if ( !  $f->{'destination'} ) {
+	    push(@retval,$f->{'number'});
+	}
+    }
+    return @retval;
+}
+sub applyImageDestinations {
+    my $images = shift;
+    my $tempDir = shift;
+    my $imageRef;
+    foreach $imageRef ( @{$images} ) {
+	if ( ! $imageRef->{'destination'}) {
+	    next;
+	}
+	if (! -d "$tempDir/" . $imageRef->{'destination'} ) {
+	    mkdir ("$tempDir/" . $imageRef->{'destination'} );
+	}
+
+	my $command = "mv $tempDir/" . $imageRef->{'file'} . " " .
+	    "$tempDir/" . $imageRef->{'destination'} . "/" . lc($imageRef->{'file'}) ;
+	print "$command\n";
+	`$command`;
+    }
+}
+sub getLine {
+    my $prompt = shift;
+    print $prompt;
+    my $line = <STDIN>;
+    chop($line);
+    return $line;
+}

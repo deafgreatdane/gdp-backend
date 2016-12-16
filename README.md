@@ -1,13 +1,70 @@
-# Keep
-##collectDownload  -  Feb 4 2016
-Part of thumb drive work
-Pull things from web download of the cart receipt page. 
+# At the show
+Orlando notes:
+
+* run splitShoot per folder in /GDP/originals/SHOOT_DIR
+* after they're all done, cd /GDP/originals ; mergeFolders
+* That puts them all in one folder
+* rename the folder to /GDP/sorted/EVENT_CODE
+* run jalbum
+* run jalbumImport
+
+## splitShoot
+a consolidated version of onsiteSort + runningOrderSort
+Does inplace moving files into sorted dogs, based a runlist
+
+Made for 1612akc
+
+
+##onsiteSort  -  Jun 26 17:50
+consolidated prompt script, does not loop. Interactive choice between fancySort and runningOrderSort
+
+* invoke with "onsiteSort eventCode"
+* prompt to put things in /GDP/originals/$eventCode"
+* move things to /tmp/$eventCode_tmp
+* fixImageNames
+* prompt for 1 fancySort, 2 runningOrderSort
+
+##gdpJalbumImport  -  Jul 21 2006
+Pull images from /GDP/jalbum to /Web/proofImages
+
+Often still referenced in conversation
 
 ##convertClipboard  -  Apr 9 2016
 single line invocation to run the clipboard through convertRunningList and put the results back on the clipboard
 
 ##convertRunningList  -  Jun 26 17:48
 Given 2 tsv columns of dog name and human name, convert to the dogHandler format
+
+
+
+##runningOrderSort 
+looks current
+
+* invoke "runningOrderSort $tmpDir /GDP/sorted/$eventCode"
+* 
+
+##gdpFixImageNames  -  Nov 21 20:22
+The workhorse of old renames
+
+##fancySort  -  Sep 6 2006
+an interactive script for sorting images. does the rollover work. Was useful when running lists were scarce, and the data entry of numbers and 
+names happened at the same time
+
+##onsiteSort.fancySort  -  May 3 2006
+looping prompt for repeated invocations of fancySort. Tries to call the web server
+
+# Thumb drive downloads
+
+### onsiteDownload
+loop on media mount, download cart, eject
+
+
+### collectDownload
+Part of thumb drive work
+Pull things from web download of the cart receipt page. 
+
+# Uncategorized Keep
+
 
 ##dropbox-services  -  May 17 2015
 Run the dropbox spring-boot webapp
@@ -27,15 +84,6 @@ flatdupe foo yieds foo.flatcopy
 
 See dupe
 
-##gdpFixImageNames  -  Nov 21 20:22
-The workhorse of old renames
-
-
-##gdpJalbumImport  -  Jul 21 2006
-Pull images from /GDP/jalbum to /Web/proofImages
-
-Often still referenced in conversati
-
 
 ##gdpLowerImages  -  Mar 31 2007
 recursively lowercase of type jpg|tif|cr2|crw
@@ -43,17 +91,10 @@ recursively lowercase of type jpg|tif|cr2|crw
 ##mergeFolders  -  Oct 19 2005
 copy two folders together, creating dirs as needed. 
 
-##onsiteDownload  -  Feb 10 2016
-loop on media mount, download cart, eject
 
-##onsiteSort  -  Jun 26 17:50
-consolidated prompt script, does not loop. Interactive choice between fancySort and runningOrderSort
 
 ##printCart  -  Nov 25 12:08
 Pull a cart receipt from the app, create PDF, and print it
-
-##runningOrderSort  -  Jun 26 17:50
-looks current
 
 ##trimFolder  -  Jul 23 2009
 a routine to take a source dir full of desired images, a destination dir 
@@ -63,13 +104,6 @@ full of all original images, and delete any of the originals.
 ----
 
 # retain, but old
-##fancySort  -  Sep 6 2006
-an interactive script for sorting images. does the rollover work. Was useful when running lists were scarce, and the data entry of numbers and 
-names happened at the same time
-
-##onsiteSort.fancySort  -  May 3 2006
-looping prompt for repeated invocations of fancySort. Tries to call the web server
-
 
 ## keep cartConfirm  -  May 20 2013
  A safety net during the consolidate process. After the manual consolidate 
