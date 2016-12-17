@@ -23,7 +23,7 @@ my @allImages = readImagesFromDir($inDir);
 print " found " . scalar(@allImages) . " images\n";
 
 ####### now do the work
-my $dogFile = "$inDir/imageNumbers.txt";
+my $dogFile = "$inDir/_imageNumbers.txt";
 
 if ( ! -e $dogFile ) {
     createDogNames($dogFile);
@@ -76,6 +76,9 @@ sub createDogNames {
 	$_ =~ s/[\r\n]//gm;
 	my ($dogName, $extra) = split(/[\s,]+/,$_,2);
 	if ( ! $extra ) {
+	    next;
+	}
+	if ( $extra == 0) {
 	    next;
 	}
 	print START "$dogName\t$extra\n";
