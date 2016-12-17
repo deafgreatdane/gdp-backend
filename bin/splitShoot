@@ -31,7 +31,7 @@ if ( ! -e $dogFile ) {
 padDogNames($dogFile);
 
 print "add image numbers in the new file opened in TextEdit:\n\t$dogFile\n";
-`open -e $dogFile`;
+system("open -e '$dogFile'");
 getLine("press any key to continue...");
 
 my $dogImages  = readDogImages($dogFile);
@@ -83,7 +83,7 @@ sub createDogNames {
     close(PB);
     close(START);
 
-    `open -e $dogFile`;
+    system("open -e '$dogFile'");
 }
 sub padDogNames {
     my $dogFile = shift;
@@ -275,10 +275,10 @@ sub applyImageDestinations {
 	    mkdir ("$tempDir/" . $imageRef->{'destination'} );
 	}
 
-	my $command = "mv $tempDir/" . $imageRef->{'file'} . " " .
-	    "$tempDir/" . $imageRef->{'destination'} . "/" . lc($imageRef->{'file'}) ;
+	my $command = "mv '$tempDir/" . $imageRef->{'file'} . "' " .
+	    "'$tempDir/" . $imageRef->{'destination'} . "/" . lc($imageRef->{'file'} . "'") ;
 	print "$command\n";
-	`$command`;
+	system($command);
     }
 }
 sub getLine {
