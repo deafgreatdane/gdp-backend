@@ -10,31 +10,29 @@ $printer = "Canon_MF4400_Series___osprey";
 #$printer = "HP_LaserJet_Professional_P_1102w";
 #$printer = "Brother_HL_2270DW_series_2";
 #$printer = "Brother_HL_2270DW_series";
+# how many copies to print
+$numCopies = 1;
 # where the receipts are stored
 $receiptDir = "/GDP/data/receipts";
 
 ####################### End of config
-$cartId = $ARGV[0];
-$numCopies = $ARGV[1];
-
-if ( ! $cartId ) {
-  die "usage: printCart cartId\n";
-}
-if ( ! $numCopies ) {
-    $numCopies = 1;
-}
 mkpath($receiptDir);
 
-$pdfName = "cart_$cartId.pdf";
-# this command was before mavericks
-#$command = "wkpdf -s $baseUrl/admin/cart_receipt.do?cartId=$cartId -y print -p letter -m 36 -o ${receiptDir}/${pdfName}";
-# this is a newer version of the same thing
-$command = "/usr/local/bin/wkhtmltopdf -l -s Letter --print-media-type $baseUrl/admin/cart_receipt.do?cartId=$cartId ${receiptDir}/${pdfName}";
+foreach $cartId ( @ARGV) {
+	if ( $cartId < 10 ) {
+		# must be a legacy pageCount
+		next;
+	}
+	$pdfName = "cart_${cartId}.pdf";
+	$command = "/usr/local/bin/wkhtmltopdf -l -s Letter --print-media-type $baseUrl/admin/cart_receipt.do?cartId=$cartId ${receiptDir}/${pdfName}";
 
-print "$command\n";
-`$command`;
+	print "$command\n";
+	`$command`;
 
-$print = "lp -d $printer -n $numCopies ${receiptDir}/${pdfName}";
+	if ( $numCopies ) {
+  		$print = "lp -d $printer -n $numCopies ${receiptDir}/${pdfName}";
+		print "$print\n";
+		`$print`;
+	}
+}
 
-print "$print\n";
-`$print`;
