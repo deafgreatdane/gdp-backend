@@ -74,7 +74,8 @@ sub findWanted {
     return if $_ =~ /a\.jpg$/i;
     my $source = $_;
     $source =~ s/\....//;  #remove the 3 character extension
-    if ( $source !~ /^.\d\d\d\d\d\d\d$/) {
+    # make sure it at least has the last 4 digit convention
+    if ( $source !~ /\d\d\d\d$/) {
       print "unknown file $source\n";
     }
 if ( $wantedNames{$source} ) {
