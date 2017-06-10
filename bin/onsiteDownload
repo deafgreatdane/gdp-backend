@@ -8,6 +8,11 @@ my(%ignoreVolumes);
 #promptVolume();
 setupIgnoreVolumes();
 
+my($allImages) = shift(@ARGV);
+if ( $allImages ne "-all") {
+    $allImages = '';
+}
+
 my($cartId);
 
 # do it!
@@ -18,7 +23,7 @@ while (1) {
     $cartId = <STDIN>;
     chomp($cartId);
     if ( $cartId =~ /^\d+$/ ) {
-	system("collectDownload", $cartId ,"/Volumes/$candidate");
+	system("collectDownload", $cartId ,"/Volumes/$candidate",$allImages);
     }
 
     print "eject it...\n";

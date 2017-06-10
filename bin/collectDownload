@@ -6,10 +6,17 @@ use File::Find;
 use File::Copy;
 
 my($baseUrl) = "http://kestrel.local:8080";
+#my($baseUrl) = "http://localhost:8080";
 
 my($cartId) = $ARGV[0];
 my($destBase) = $ARGV[1];
+my($allImages) = $ARGV[2];
 
+my($cartQueryParams) = "";
+
+if ( $allImages eq "-all") {
+    $cartQueryParams = "&allImages=true";
+}
 
 if ( ! -d $destBase) {
     die "usage: collectDownload cartId baseFolder";
@@ -23,7 +30,7 @@ $GDP::destDir = "${destBase}/GDP_cart${cartId}";
 mkdir($GDP::destDir);
 $GDP::doneFiles = 0;
 
-system("wget","-r","-q","$baseUrl/shop/cart_download.do?cartId=$cartId");
+system("wget","-r","-q","$baseUrl/shop/cart_download.do?cartId=$cartId$cartQueryParams");
 
 sub wanted() {
     if( ! /\.jpg/ ) {
