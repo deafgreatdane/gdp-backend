@@ -11,9 +11,14 @@ $printer = "Canon_MF4400_Series___osprey";
 #$printer = "Brother_HL_2270DW_series_2";
 #$printer = "Brother_HL_2270DW_series";
 # how many copies to print
-$numCopies = 1;
+$numCopies = 0;
 # where the receipts are stored
 $receiptDir = "/GDP/data/receipts";
+
+# portrait tickets enabled:
+$portraitEnabled = 1;
+# portrait tickets disabled
+#$portraitEnabled = 0;
 
 ####################### End of config
 mkpath($receiptDir);
@@ -34,5 +39,17 @@ foreach $cartId ( @ARGV) {
 		print "$print\n";
 		`$print`;
 	}
+
+   if ( $portraitEnabled ) {
+     $portraitFile = "/tmp/portrait${cartId}.pdf";
+	$command = "/usr/local/bin/wkhtmltopdf -l -s Letter --print-media-type $baseUrl/cart_portrait.do?cartId=$cartId $portraitFile";
+	print "$command\n";
+	`$command`;
+	if ( ! $? ) {
+ 		$command = "lp -d $printer $portraitFile";
+		print "$command\n";
+		`$command`;
+	}
+   }
 }
 
