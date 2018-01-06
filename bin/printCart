@@ -5,6 +5,7 @@ use File::Path;
 
 # the webapp to pull from
 $baseUrl = "http://localhost:8080/shop";
+#$baseUrl = "http://kestrel.local:8080/shop";
 # for a list of printer names use "lpstat -d -p"
 $printer = "Canon_MF4400_Series___osprey";
 #$printer = "HP_LaserJet_Professional_P_1102w";
@@ -16,19 +17,41 @@ $numCopies = 0;
 $receiptDir = "/GDP/data/receipts";
 
 # portrait tickets enabled:
-$portraitEnabled = 1;
+$portraitEnabled = 0;
 # portrait tickets disabled
 #$portraitEnabled = 0;
 
 ####################### End of config
 mkpath($receiptDir);
+chdir($receiptDir);
 
 foreach $cartId ( @ARGV) {
+
 	if ( $cartId < 10 ) {
 		# must be a legacy pageCount
 		next;
 	}
 	$pdfName = "cart_${cartId}.pdf";
+	
+	if ( -e "${pdfName}") {
+	    @existingNames = glob("cart_${cartId}.*.pdf");
+	    if ( scalar(@existingNames) > 0) {
+		$newNumber = 1;
+		foreach $name (@existingNames) {
+		    $name =~ /\.(\d+)\.pdf/;
+		    $number = $1;
+		    if ( $newNumber < $number ) {
+			$newNumber = $number;
+		    }
+		}
+		$newNumber++;
+		$newName = "cart_${cartId}.${newNumber}.pdf";
+	    } else {
+		$newName = "cart_${cartId}.1.pdf";
+	    }
+	    rename($pdfName , $newName);
+	}
+	     
 	$command = "/usr/local/bin/wkhtmltopdf -l -s Letter --print-media-type $baseUrl/admin/cart_receipt.do?cartId=$cartId ${receiptDir}/${pdfName}";
 
 	print "$command\n";
