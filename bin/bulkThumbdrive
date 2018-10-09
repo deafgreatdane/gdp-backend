@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+# a utility for bulk copying folders to individual thumbdrives
+
+# given a directory, for each subdirectory in it,
+# wait for thumbdrive to be added, copy the subdirectory, eject the thumbdrive
+# each directory will be moved to $todo.done
+
+package GDP;
+use strict;
+
+my(%ignoreVolumes);
+#print getVolumes();
+#promptVolume();
+setupIgnoreVolumes();
+
+my($mainDir) = shift(@ARGV);
+die unless -d $mainDir;
+my $doneDir = "$mainDir.done";
+if ( ! -d $doneDir) {
+    mkdir($doneDir);
+}
+opendir(DIR, $mainDir);
+    # do it!
+my $dir ;
+while ($dir = readdir(DIR)){
+    next if $dir =~ /\./;
+    next if ! -d "$mainDir/$dir";
+    print "insert thumbdrive for $dir\n";
+    my $candidate = waitForVolume();
+
+
+    `cp -R '$mainDir/$dir' '/Volumes/$candidate'`;
+    `mv '$mainDir/$dir' '$doneDir'`;
+    print "eject it...\n";
+    unmount($candidate);
+	
+    print "done\n";
+}
+sub unmount() {
+    my $volume = shift;
+
+    my $disk ;
+    my $command;
+    $command = "df -Hl | grep \"$volume\"";
+    $disk = (split(/\s+/, `$command`))[0];
+    print "unmounting $disk";
+    system("diskutil unmount $disk");
+    
+}
+
+sub waitForVolume() {
+    my ($answer, $candidate, $count);
+    my @candidates;
+    print "waiting for media...\n";
+    while(1) {
+	@candidates = getVolumes();
+	for $candidate (@candidates) {
+	    if (! $ignoreVolumes{$candidate}) {
+		return $candidate;
+	    }
+	}
+	sleep(1);
+    };
+}
+sub setupIgnoreVolumes {
+    my ($answer, $candidate, $count);
+    my @candidates;
+    while(1) {
+	@candidates = getVolumes();
+	if ( scalar(@candidates) == 0 ) {
+	    return;
+	}
+	print "The following are mounted volumes\n";
+	$count = 1;
+	for $candidate ( @candidates ) {
+	    print "${count}: $candidate\n";
+	}
+	print "If you want to ignore these, enter \"I\"\n";
+	print "otherwise, remove the media you don't want, and then hit return\n";
+
+	$answer = <STDIN>;
+	chomp($answer);
+	if ( ! $answer ) {
+	    # loop around
+	    next;
+	} elsif ( $answer  =~ /i/i ) {
+	    for $candidate (@candidates ) {
+		$GDP::ignoreVolumes{$candidate} = 1;
+	    }
+	    return;
+	}
+    };
+    
+}
+sub promptVolume {
+    my ($answer, $candidate, $count);
+    my @candidates;
+    while(1) {
+	@candidates = getVolumes();
+	if ( scalar(@candidates) == 0 ) {
+	    print "no media mounted, press any key to continue";
+	    $answer = <STDIN>;
+	    continue;
+	}
+	$count = 1;
+	for $candidate ( @candidates ) {
+	    print "${count}: $candidate\n";
+	}
+	$answer = <STDIN>;
+	chomp($answer);
+	if ( ! $answer ) {
+	    # loop around
+	    next;
+	} 
+	print "YOU GO $answer!!!\n";
+    };
+}
+sub getVolumes {
+    my(@raw) = `df -Hl | grep Volume`;
+    my @retval = ();
+    for( @raw) {
+	chomp;
+	$_ =~ s:^.*/Volumes/::;
+	push( @retval,$_) unless $GDP::ignoreVolumes{$_};
+    }
+    return @retval;
+}
