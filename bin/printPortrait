@@ -1,0 +1,40 @@
+#!/usr/bin/perl
+# a utility to pull a receipt from the shopping system.
+
+use File::Path;
+
+# the webapp to pull from
+$baseUrl = "http://localhost:8080/shop";
+# for a list of printer names use "lpstat -d -p"
+$printer = "Canon_MF4400_Series___osprey";
+#$printer = "HP_LaserJet_Professional_P_1102w";
+#$printer = "Brother_HL_2270DW_series_2";
+#$printer = "Brother_HL_2270DW_series";
+
+# where the receipts are stored
+$receiptDir = "/GDP/data/receipts";
+
+
+####################### End of config
+mkpath($receiptDir);
+chdir($receiptDir);
+
+foreach $cartId ( @ARGV) {
+    if ( $cartId < 10 ) {
+	# must be a legacy pageCount
+	next;
+    }
+
+    $portraitFile = "/tmp/portrait${cartId}.pdf";
+    $command = "/usr/local/bin/wkhtmltopdf -l -s Letter --print-media-type $baseUrl/cart_portrait.do?cartId=$cartId $portraitFile";
+    print "$command\n";
+    `$command`;
+    if ( ! $? ) {
+	$command = "lp -d $printer $portraitFile";
+	print "$command\n";
+	`$command`;
+    }
+
+}
+
+
