@@ -5,8 +5,8 @@ use strict;
 use File::Find;
 use File::Copy;
 
-my($baseUrl) = "http://kestrel.local:8080";
-#my($baseUrl) = "http://localhost:8080";
+#my($baseUrl) = "http://kestrel.local:8080";
+my($baseUrl) = "http://localhost:8080";
 
 my($cartId) = $ARGV[0];
 my($destBase) = $ARGV[1];

@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+# copy a given file to all subdirectories.
+# useful for copying the PDF terms of use to all dropbox folders
+
+use File::Find;
+use File::Basename;
+use File::Path;
+use File::Copy;
+
+use strict;
+
+my $fileTodo = shift || die &usage;
+if ( ! -f $fileTodo) {
+  print "$fileTodo not found\n";
+  exit 1
+}
+my @roots = listThisDirectory();
+
+my $folder;
+foreach $folder ( @roots ) {
+    print "copying $fileTodo to $folder\n";
+  `cp $fileTodo $folder`;    
+}
+
+sub listThisDirectory {
+    my $option ;
+    my @retval;
+    foreach $option (<*>) {
+	next if ! -d $option;
+	push(@retval, $option);
+    }
+    return @retval;
+}
+
+sub usage {
+    die "copyDown fileToCopy";
+}
+
